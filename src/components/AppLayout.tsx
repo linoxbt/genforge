@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Trophy, Brain, Gamepad2, Dice5, Home, Wallet, Terminal } from "lucide-react";
+import { Trophy, Brain, Gamepad2, Dice5, Home, Terminal } from "lucide-react";
 import { useWallet } from "@/contexts/WalletContext";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ const navItems = [
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
-  const { address, balance } = useWallet();
+  const { address, balance, isConnected, isConnecting, connectionMode, connectGenerated, connectMetaMask, disconnect } = useWallet();
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -46,12 +46,36 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
           })}
         </nav>
         <div className="p-3 border-t border-border space-y-2">
-          <div className="flex items-center gap-2 px-2">
-            <Wallet className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-foreground">{balance.toFixed(2)} ETH</span>
-          </div>
-          <p className="text-xs text-muted-foreground font-mono px-2 truncate">{address}</p>
-          <p className="text-xs text-muted-foreground font-mono px-2">Asimov Testnet</p>
+          {isConnected ? (
+            <>
+              <div className="flex items-center gap-2 px-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-sm font-bold text-foreground">{balance.toFixed(4)} GEN</span>
+              </div>
+              <p className="text-xs text-muted-foreground font-mono px-2 truncate">{address}</p>
+              <p className="text-xs text-muted-foreground font-mono px-2">Asimov Testnet</p>
+              <button onClick={disconnect} className="text-xs text-destructive hover:underline px-2 font-mono">
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <div className="space-y-1.5">
+              <button
+                onClick={connectGenerated}
+                disabled={isConnecting}
+                className="w-full text-xs font-mono px-2 py-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+              >
+                {isConnecting ? "Connecting..." : "Generate Wallet"}
+              </button>
+              <button
+                onClick={connectMetaMask}
+                disabled={isConnecting}
+                className="w-full text-xs font-mono px-2 py-1.5 rounded border border-border text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+              >
+                MetaMask
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
