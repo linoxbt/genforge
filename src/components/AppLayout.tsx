@@ -1,10 +1,11 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Trophy, Brain, Gamepad2, Dice5, Home, Code2, Key, Eye, EyeOff, Copy, Check, ExternalLink } from "lucide-react";
-import { useWallet, getAvailableWallets } from "@/contexts/WalletContext";
+import { Trophy, Brain, Gamepad2, Dice5, Home, Code2, Key, Eye, EyeOff, Copy, Check, ExternalLink, Wallet } from "lucide-react";
+import { useWallet } from "@/contexts/WalletContext";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import genForgeLogo from "@/assets/genforge-logo.png";
+import WalletModal from "@/components/WalletModal";
 
 const navItems = [
   { path: "/", icon: Home, label: "Home" },
@@ -17,10 +18,10 @@ const navItems = [
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
-  const { address, balance, isConnected, isConnecting, connectionMode, connectGenerated, connectInjected, disconnect, privateKey } = useWallet();
+  const { address, balance, isConnected, connectionMode, disconnect, privateKey } = useWallet();
   const [showPK, setShowPK] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const { toast } = useToast();
 
   const copyPK = () => {
@@ -31,8 +32,6 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
       toast({ title: "Private key copied", description: "Keep it safe! Never share it." });
     }
   };
-
-  const availableWallets = getAvailableWallets();
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -74,7 +73,6 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
                 <p className="text-xs text-muted-foreground font-mono px-2 truncate">{address}</p>
                 <p className="text-xs text-muted-foreground font-mono px-2">Asimov Testnet</p>
 
-                {/* Private Key Viewer for generated wallets */}
                 {connectionMode === "generated" && privateKey && (
                   <div className="px-2 space-y-1">
                     <button
@@ -101,42 +99,13 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
                 </button>
               </>
             ) : (
-              <div className="space-y-1.5">
-                <button
-                  onClick={connectGenerated}
-                  disabled={isConnecting}
-                  className="w-full text-xs font-mono px-2 py-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
-                >
-                  {isConnecting ? "Connecting..." : "Generate Wallet"}
-                </button>
-
-                {availableWallets.length > 0 ? (
-                  <>
-                    <button
-                      onClick={() => setShowWalletPicker(!showWalletPicker)}
-                      className="w-full text-xs font-mono px-2 py-1.5 rounded border border-border text-foreground hover:bg-secondary transition-colors"
-                    >
-                      Connect Wallet
-                    </button>
-                    {showWalletPicker && (
-                      <div className="space-y-1 pl-1">
-                        {availableWallets.map((w) => (
-                          <button
-                            key={w.name}
-                            onClick={() => { connectInjected(w.name); setShowWalletPicker(false); }}
-                            disabled={isConnecting}
-                            className="w-full text-xs font-mono px-2 py-1 rounded hover:bg-secondary transition-colors text-left text-muted-foreground hover:text-foreground disabled:opacity-50 flex items-center gap-1.5"
-                          >
-                            <span>{w.icon}</span> {w.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-[10px] text-muted-foreground px-2">No EVM wallets detected</p>
-                )}
-              </div>
+              <button
+                onClick={() => setWalletModalOpen(true)}
+                className="w-full flex items-center justify-center gap-2 text-xs font-mono px-2 py-2 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                Connect Wallet
+              </button>
             )}
           </div>
         </aside>
@@ -146,7 +115,6 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
         </main>
       </div>
 
-      {/* Footer */}
       <footer className="border-t border-border py-4 px-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center gap-2 font-mono">
@@ -163,6 +131,8 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
           </a>
         </div>
       </footer>
+
+      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </div>
   );
 };
