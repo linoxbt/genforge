@@ -5,53 +5,32 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
-
-interface Bet {
-  id: string;
-  user: string;
-  side: "for" | "against";
-  amount: number;
-  timestamp: Date;
-}
-
-interface BettingEvent {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  endDate: string;
-  status: "open" | "resolving" | "resolved";
-  bets: Bet[];
-  totalFor: number;
-  totalAgainst: number;
-  result?: "for" | "against";
-  resolution?: string;
-  createdAt: Date;
-}
+import { useWallet } from "@/contexts/WalletContext";
 
 const categories = ["Sports", "Politics", "Crypto", "Weather", "Entertainment", "Science", "Custom"];
+
+interface Bet { id: string; user: string; side: "for" | "against"; amount: number; timestamp: Date; }
+interface BettingEvent {
+  id: string; title: string; description: string; category: string; endDate: string;
+  status: "open" | "resolving" | "resolved"; bets: Bet[];
+  totalFor: number; totalAgainst: number; result?: "for" | "against"; resolution?: string; createdAt: Date;
+}
 
 const P2PBetting = () => {
   const [events, setEvents] = useState<BettingEvent[]>([
     {
-      id: "demo1",
-      title: "Bitcoin will exceed $150K by end of 2026",
-      description: "Will BTC/USD trading price surpass $150,000 before December 31, 2026?",
-      category: "Crypto",
-      endDate: "2026-12-31",
-      status: "open",
+      id: "demo1", title: "Bitcoin will exceed $150K by end of 2026",
+      description: "Will BTC/USD surpass $150,000 before Dec 31, 2026?",
+      category: "Crypto", endDate: "2026-12-31", status: "open",
       bets: [
         { id: "b1", user: "0xAb3F...9c2D", side: "for", amount: 2.5, timestamp: new Date() },
         { id: "b2", user: "0x7eC1...4fA8", side: "against", amount: 1.8, timestamp: new Date() },
-        { id: "b3", user: "0xD92a...1bE5", side: "for", amount: 3.0, timestamp: new Date() },
       ],
-      totalFor: 5.5,
-      totalAgainst: 1.8,
-      createdAt: new Date(),
+      totalFor: 5.5, totalAgainst: 1.8, createdAt: new Date(),
     },
   ]);
   const [showCreate, setShowCreate] = useState(false);
@@ -60,23 +39,15 @@ const P2PBetting = () => {
   const [category, setCategory] = useState("");
   const [endDate, setEndDate] = useState("");
   const [betAmount, setBetAmount] = useState<Record<string, string>>({});
-  const [userWallet] = useState("0xYour...Wallet");
+  const { toast } = useToast();
+  const { address, withdraw, reward } = useWallet();
 
   const createEvent = () => {
     if (!title || !description || !category || !endDate) return;
-    const newEvent: BettingEvent = {
-      id: Date.now().toString(),
-      title,
-      description,
-      category,
-      endDate,
-      status: "open",
-      bets: [],
-      totalFor: 0,
-      totalAgainst: 0,
-      createdAt: new Date(),
-    };
-    setEvents((prev) => [newEvent, ...prev]);
+    setEvents((prev) => [{
+      id: Date.now().toString(), title, description, category, endDate,
+      status: "open", bets: [], totalFor: 0, totalAgainst: 0, createdAt: new Date(),
+    }, ...prev]);
     setShowCreate(false);
     setTitle(""); setDescription(""); setCategory(""); setEndDate("");
   };
@@ -84,112 +55,81 @@ const P2PBetting = () => {
   const placeBet = (eventId: string, side: "for" | "against") => {
     const amount = Number(betAmount[eventId]);
     if (!amount || amount <= 0) return;
-
-    const bet: Bet = {
-      id: Date.now().toString(),
-      user: userWallet,
-      side,
-      amount,
-      timestamp: new Date(),
-    };
-
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              bets: [...e.bets, bet],
-              totalFor: e.totalFor + (side === "for" ? amount : 0),
-              totalAgainst: e.totalAgainst + (side === "against" ? amount : 0),
-            }
-          : e
-      )
-    );
+    if (!withdraw(amount, `Bet: ${side}`, "bet")) {
+      toast({ title: "Insufficient balance", variant: "destructive" });
+      return;
+    }
+    setEvents((prev) => prev.map((e) =>
+      e.id === eventId ? {
+        ...e, bets: [...e.bets, { id: Date.now().toString(), user: address, side, amount, timestamp: new Date() }],
+        totalFor: e.totalFor + (side === "for" ? amount : 0),
+        totalAgainst: e.totalAgainst + (side === "against" ? amount : 0),
+      } : e
+    ));
     setBetAmount((prev) => ({ ...prev, [eventId]: "" }));
   };
 
   const resolveEvent = async (eventId: string) => {
-    setEvents((prev) =>
-      prev.map((e) => (e.id === eventId ? { ...e, status: "resolving" as const } : e))
-    );
-
-    // Simulate AI resolution
+    setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, status: "resolving" as const } : e));
     await new Promise((r) => setTimeout(r, 3000));
 
     const result = Math.random() > 0.5 ? "for" : "against";
-    const resolutions = [
-      "AI verified outcome from multiple news sources and data feeds. Consensus reached with 95% validator agreement.",
-      "Intelligent Contract browsed real-time data sources. LLM jury confirmed the result with high confidence.",
-      "Cross-referenced 12 independent sources. Optimistic Democracy consensus achieved. Result is final.",
-    ];
+    const event = events.find((e) => e.id === eventId);
+    if (event) {
+      const winningPool = result === "for" ? event.totalFor : event.totalAgainst;
+      const totalPool = event.totalFor + event.totalAgainst;
+      const userBets = event.bets.filter((b) => b.user === address && b.side === result);
+      for (const bet of userBets) {
+        const payout = (bet.amount / winningPool) * totalPool;
+        reward(payout, `Bet won: ${event.title}`);
+      }
+    }
 
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              status: "resolved" as const,
-              result: result as "for" | "against",
-              resolution: resolutions[Math.floor(Math.random() * resolutions.length)],
-            }
-          : e
-      )
-    );
+    setEvents((prev) => prev.map((e) => e.id === eventId ? {
+      ...e, status: "resolved" as const, result: result as "for" | "against",
+      resolution: "AI verified outcome from multiple sources. Consensus reached.",
+    } : e));
   };
 
   const getOdds = (event: BettingEvent) => {
     const total = event.totalFor + event.totalAgainst;
     if (total === 0) return { for: 50, against: 50 };
-    return {
-      for: Math.round((event.totalFor / total) * 100),
-      against: Math.round((event.totalAgainst / total) * 100),
-    };
+    return { for: Math.round((event.totalFor / total) * 100), against: Math.round((event.totalAgainst / total) * 100) };
   };
 
   return (
     <AppLayout>
-      <div className="p-8 max-w-5xl mx-auto space-y-8">
+      <div className="p-6 max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <Dice5 className="w-8 h-8 text-red-400" />
-              P2P Gambling & Betting
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <Dice5 className="w-6 h-6 text-primary" />
+              P2P Betting
             </h1>
-            <p className="text-muted-foreground mt-2">
-              Bet on real-world outcomes. AI verifies results from live data sources using LLM consensus.
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Bet on real-world outcomes. AI resolves from live data.</p>
           </div>
-          <Button onClick={() => setShowCreate(!showCreate)} className="bg-primary text-primary-foreground glow-cyan">
-            <Plus className="w-4 h-4 mr-2" /> Create Event
+          <Button onClick={() => setShowCreate(!showCreate)} className="bg-primary text-primary-foreground">
+            <Plus className="w-4 h-4 mr-1" /> Create Event
           </Button>
         </div>
 
-        {/* Create Event */}
         <AnimatePresence>
           {showCreate && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-              <Card className="gradient-border">
-                <CardHeader><CardTitle>Create Betting Event</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <Input placeholder="Event Title (e.g. 'Team X wins championship')" value={title} onChange={(e) => setTitle(e.target.value)} />
-                  <Textarea placeholder="Describe the exact conditions for resolution..." value={description} onChange={(e) => setDescription(e.target.value)} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-foreground block mb-2">Category</label>
-                      <Select value={category} onValueChange={setCategory}>
-                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                        <SelectContent>
-                          {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-foreground block mb-2">Resolution Date</label>
-                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                    </div>
+              <Card className="border-border">
+                <CardHeader><CardTitle className="text-base">Create Event</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <Input placeholder="Event Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+                  <Textarea placeholder="Resolution conditions..." value={description} onChange={(e) => setDescription(e.target.value)} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Select value={category} onValueChange={setCategory}>
+                      <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                      <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={createEvent} className="bg-primary text-primary-foreground">Deploy Event</Button>
+                    <Button onClick={createEvent} className="bg-primary text-primary-foreground">Deploy</Button>
                     <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
                   </div>
                 </CardContent>
@@ -198,145 +138,81 @@ const P2PBetting = () => {
           )}
         </AnimatePresence>
 
-        {/* Events */}
-        <div className="space-y-6">
-          {events.length === 0 && !showCreate && (
-            <div className="text-center py-16 text-muted-foreground">
-              <Dice5 className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p>No events yet. Create your first betting event.</p>
-            </div>
-          )}
+        <div className="space-y-4">
           {events.map((event) => {
             const odds = getOdds(event);
             return (
-              <Card key={event.id} className="gradient-border overflow-hidden">
-                <CardHeader>
+              <Card key={event.id} className="border-border">
+                <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex-1">
+                    <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-xs">{event.category}</Badge>
-                        <Badge className={
-                          event.status === "resolved"
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : event.status === "resolving"
-                            ? "bg-primary/20 text-primary"
-                            : "bg-amber-500/20 text-amber-400"
-                        }>
-                          {event.status === "resolving" ? "AI Resolving..." : event.status}
+                        <Badge variant="outline" className="text-xs font-mono">{event.category}</Badge>
+                        <Badge variant="outline" className={event.status === "resolved" ? "text-primary" : event.status === "resolving" ? "text-accent" : "text-foreground"}>
+                          {event.status === "resolving" ? "Resolving..." : event.status}
                         </Badge>
                       </div>
-                      <CardTitle className="text-lg">{event.title}</CardTitle>
-                      <CardDescription>{event.description}</CardDescription>
+                      <CardTitle className="text-base">{event.title}</CardTitle>
+                      <CardDescription className="text-xs">{event.description}</CardDescription>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-foreground">{(event.totalFor + event.totalAgainst).toFixed(2)} ETH</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 justify-end">
-                        <Users className="w-3 h-3" /> {event.bets.length} bets
-                      </p>
+                      <p className="text-xl font-bold font-mono text-foreground">{(event.totalFor + event.totalAgainst).toFixed(2)} ETH</p>
+                      <p className="text-xs text-muted-foreground"><Users className="w-3 h-3 inline" /> {event.bets.length}</p>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Odds bar */}
+                <CardContent className="space-y-3">
                   <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-emerald-400 flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" /> Yes ({odds.for}%)
-                      </span>
-                      <span className="text-red-400 flex items-center gap-1">
-                        No ({odds.against}%)
-                        <TrendingDown className="w-3 h-3" />
-                      </span>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-primary"><TrendingUp className="w-3 h-3 inline" /> Yes ({odds.for}%)</span>
+                      <span className="text-destructive">No ({odds.against}%) <TrendingDown className="w-3 h-3 inline" /></span>
                     </div>
-                    <div className="h-3 bg-red-500/30 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${odds.for}%` }} />
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>{event.totalFor.toFixed(2)} ETH</span>
-                      <span>{event.totalAgainst.toFixed(2)} ETH</span>
+                    <div className="h-2 bg-destructive/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${odds.for}%` }} />
                     </div>
                   </div>
 
-                  {/* Resolution */}
                   {event.status === "resolved" && event.result && (
-                    <div className={`rounded-lg p-4 ${event.result === "for" ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-red-500/10 border border-red-500/30"}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <CheckCircle2 className={`w-5 h-5 ${event.result === "for" ? "text-emerald-400" : "text-red-400"}`} />
-                        <span className="font-bold text-foreground">
-                          Result: {event.result === "for" ? "YES ✓" : "NO ✗"}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{event.resolution}</p>
+                    <div className={`rounded p-3 text-sm ${event.result === "for" ? "bg-primary/10 border border-primary/30" : "bg-destructive/10 border border-destructive/30"}`}>
+                      <CheckCircle2 className={`w-4 h-4 inline mr-1 ${event.result === "for" ? "text-primary" : "text-destructive"}`} />
+                      <span className="font-bold text-foreground">{event.result === "for" ? "YES" : "NO"}</span>
+                      <p className="text-xs text-muted-foreground mt-1">{event.resolution}</p>
                     </div>
                   )}
 
-                  {/* Bet actions */}
                   {event.status === "open" && (
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <div className="relative flex-1">
-                        <Coins className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="Amount (ETH)"
-                          className="pl-9"
-                          value={betAmount[event.id] || ""}
-                          onChange={(e) => setBetAmount((prev) => ({ ...prev, [event.id]: e.target.value }))}
-                        />
+                        <Coins className="w-3 h-3 absolute left-2.5 top-2.5 text-muted-foreground" />
+                        <Input type="number" step="0.01" placeholder="ETH" className="pl-8 text-sm"
+                          value={betAmount[event.id] || ""} onChange={(e) => setBetAmount((prev) => ({ ...prev, [event.id]: e.target.value }))} />
                       </div>
-                      <Button
-                        onClick={() => placeBet(event.id, "for")}
-                        disabled={!betAmount[event.id]}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        <TrendingUp className="w-4 h-4 mr-1" /> Yes
-                      </Button>
-                      <Button
-                        onClick={() => placeBet(event.id, "against")}
-                        disabled={!betAmount[event.id]}
-                        className="bg-red-600 hover:bg-red-700 text-white"
-                      >
-                        <TrendingDown className="w-4 h-4 mr-1" /> No
-                      </Button>
+                      <Button size="sm" onClick={() => placeBet(event.id, "for")} disabled={!betAmount[event.id]} className="bg-primary text-primary-foreground text-xs">Yes</Button>
+                      <Button size="sm" onClick={() => placeBet(event.id, "against")} disabled={!betAmount[event.id]} variant="destructive" className="text-xs">No</Button>
                     </div>
                   )}
 
-                  {/* Resolve button */}
                   {event.status === "open" && event.bets.length >= 2 && (
-                    <Button variant="outline" className="w-full" onClick={() => resolveEvent(event.id)}>
-                      <Clock className="w-4 h-4 mr-2" /> Trigger AI Resolution
+                    <Button variant="outline" className="w-full text-xs" onClick={() => resolveEvent(event.id)}>
+                      <Clock className="w-3 h-3 mr-1" /> Trigger AI Resolution
                     </Button>
                   )}
 
                   {event.status === "resolving" && (
-                    <div className="text-center py-2 text-primary text-sm animate-pulse">
-                      🔮 AI browsing live data sources for resolution...
-                    </div>
+                    <div className="text-center py-2 text-primary text-xs animate-pulse font-mono">Resolving...</div>
                   )}
 
-                  {/* Recent bets */}
                   {event.bets.length > 0 && (
-                    <div className="border-t border-border pt-3">
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">Recent Bets</p>
-                      <div className="space-y-1">
-                        {event.bets.slice(-5).reverse().map((bet) => (
-                          <div key={bet.id} className="flex items-center justify-between text-xs">
-                            <span className="font-mono text-muted-foreground">{bet.user}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-foreground">{bet.amount} ETH</span>
-                              <Badge className={bet.side === "for" ? "bg-emerald-500/20 text-emerald-400 text-xs" : "bg-red-500/20 text-red-400 text-xs"}>
-                                {bet.side === "for" ? "YES" : "NO"}
-                              </Badge>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="border-t border-border pt-2">
+                      <p className="text-xs font-mono text-muted-foreground mb-1">Recent</p>
+                      {event.bets.slice(-3).reverse().map((bet) => (
+                        <div key={bet.id} className="flex items-center justify-between text-xs py-0.5">
+                          <span className="font-mono text-muted-foreground">{bet.user}</span>
+                          <span className="font-mono text-foreground">{bet.amount} ETH <Badge variant="outline" className={`text-xs ${bet.side === "for" ? "text-primary" : "text-destructive"}`}>{bet.side === "for" ? "YES" : "NO"}</Badge></span>
+                        </div>
+                      ))}
                     </div>
                   )}
-
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> Resolves: {event.endDate}
-                  </p>
                 </CardContent>
               </Card>
             );
