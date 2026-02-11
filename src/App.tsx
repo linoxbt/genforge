@@ -12,6 +12,7 @@ import BountyReview from "./pages/BountyReview";
 import TriviaGame from "./pages/TriviaGame";
 import GameMaster from "./pages/GameMaster";
 import P2PBetting from "./pages/P2PBetting";
+import WalletPage from "./pages/Wallet";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/trivia" element={<TriviaGame />} />
             <Route path="/rpg" element={<GameMaster />} />
             <Route path="/betting" element={<P2PBetting />} />
+            <Route path="/wallet" element={<WalletPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
