@@ -50,7 +50,7 @@ const item = {
 };
 
 const Index = () => {
-  const { balance } = useWallet();
+  const { balance, isConnected, connectGenerated, connectMetaMask, isConnecting, address } = useWallet();
 
   return (
     <div className="min-h-screen bg-background">
@@ -63,7 +63,21 @@ const Index = () => {
             <Badge variant="outline" className="text-xs font-mono">testnet</Badge>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm font-mono text-muted-foreground">{balance.toFixed(2)} ETH</span>
+            {isConnected ? (
+              <>
+                <span className="text-sm font-mono text-muted-foreground">{balance.toFixed(4)} GEN</span>
+                <span className="text-xs font-mono text-muted-foreground truncate max-w-[120px]">{address}</span>
+              </>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="default" size="sm" className="font-mono text-xs" onClick={connectGenerated} disabled={isConnecting}>
+                  {isConnecting ? "..." : "Generate Wallet"}
+                </Button>
+                <Button variant="outline" size="sm" className="font-mono text-xs" onClick={connectMetaMask} disabled={isConnecting}>
+                  MetaMask
+                </Button>
+              </div>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -94,7 +108,7 @@ const Index = () => {
               <span className="text-primary text-glow">GenLayer Blockchain</span>
             </h1>
             <p className="text-lg text-muted-foreground mt-6 max-w-2xl leading-relaxed">
-              Six production-ready tools powered by Intelligent Contracts — AI agents that verify identity,
+              Four production-ready tools powered by Intelligent Contracts — AI agents that
               evaluate work, run games, and settle bets on-chain with LLM consensus.
             </p>
           </motion.div>
