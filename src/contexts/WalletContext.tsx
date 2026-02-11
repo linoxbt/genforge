@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
-import { createClient, createAccount, generatePrivateKey, formatStakingAmount } from "genlayer-js";
+import { createClient, createAccount, generatePrivateKey } from "genlayer-js";
 import { testnetAsimov } from "genlayer-js/chains";
-import type { Account, Address } from "viem";
+import type { Address } from "viem";
 
 interface Transaction {
   id: string;
@@ -12,7 +12,7 @@ interface Transaction {
   hash?: string;
 }
 
-type ConnectionMode = "none" | "generated" | "metamask";
+type ConnectionMode = "none" | "generated" | "injected";
 
 interface WalletContextType {
   address: string;
@@ -23,8 +23,9 @@ interface WalletContextType {
   isConnected: boolean;
   client: ReturnType<typeof createClient> | null;
   account: ReturnType<typeof createAccount> | null;
+  privateKey: string | null;
   connectGenerated: () => Promise<void>;
-  connectMetaMask: () => Promise<void>;
+  connectInjected: (providerName?: string) => Promise<void>;
   disconnect: () => void;
   refreshBalance: () => Promise<void>;
   deposit: (amount: number) => void;
@@ -43,6 +44,31 @@ export const useWallet = () => {
 
 const PRIVATE_KEY_STORAGE = "genlayer_pk";
 
+export function getAvailableWallets(): { name: string; icon: string; provider: any }[] {
+  if (typeof window === "undefined") return [];
+  const wallets: { name: string; icon: string; provider: any }[] = [];
+  const ethereum = (window as any).ethereum;
+  if (!ethereum) return wallets;
+
+  // Handle multiple providers (EIP-6963 or providers array)
+  if (ethereum.providers?.length) {
+    for (const p of ethereum.providers) {
+      if (p.isMetaMask) wallets.push({ name: "MetaMask", icon: "🦊", provider: p });
+      else if (p.isCoinbaseWallet) wallets.push({ name: "Coinbase Wallet", icon: "🔵", provider: p });
+      else if (p.isBraveWallet) wallets.push({ name: "Brave Wallet", icon: "🦁", provider: p });
+      else if (p.isRabby) wallets.push({ name: "Rabby", icon: "🐰", provider: p });
+      else wallets.push({ name: "Wallet", icon: "💳", provider: p });
+    }
+  } else {
+    if (ethereum.isMetaMask) wallets.push({ name: "MetaMask", icon: "🦊", provider: ethereum });
+    else if (ethereum.isCoinbaseWallet) wallets.push({ name: "Coinbase Wallet", icon: "🔵", provider: ethereum });
+    else if (ethereum.isBraveWallet) wallets.push({ name: "Brave Wallet", icon: "🦁", provider: ethereum });
+    else if (ethereum.isRabby) wallets.push({ name: "Rabby", icon: "🐰", provider: ethereum });
+    else wallets.push({ name: "Browser Wallet", icon: "💳", provider: ethereum });
+  }
+  return wallets;
+}
+
 export const WalletProvider = ({ children }: { children: ReactNode }) => {
   const [address, setAddress] = useState("");
   const [balance, setBalance] = useState(0);
@@ -51,6 +77,7 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [client, setClient] = useState<ReturnType<typeof createClient> | null>(null);
   const [account, setAccount] = useState<ReturnType<typeof createAccount> | null>(null);
+  const [privateKey, setPrivateKey] = useState<string | null>(null);
 
   const isConnected = connectionMode !== "none";
 
@@ -65,7 +92,6 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     if (!client || !address) return;
     try {
       const bal = await client.getBalance({ address: address as Address });
-      // bal is in wei, convert to GEN (18 decimals)
       setBalance(Number(bal) / 1e18);
     } catch (e) {
       console.error("Failed to fetch balance:", e);
@@ -75,7 +101,6 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
   const connectGenerated = useCallback(async () => {
     setIsConnecting(true);
     try {
-      // Reuse or generate private key
       let pk = localStorage.getItem(PRIVATE_KEY_STORAGE) as `0x${string}` | null;
       if (!pk) {
         pk = generatePrivateKey();
@@ -83,16 +108,14 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const acc = createAccount(pk);
-      const cl = createClient({
-        chain: testnetAsimov,
-        account: acc,
-      });
+      const cl = createClient({ chain: testnetAsimov, account: acc });
 
       setAccount(acc);
       setClient(cl);
       setAddress(acc.address);
+      setPrivateKey(pk);
       setConnectionMode("generated");
-      addTx({ type: "deposit", amount: 0, description: "Connected to GenLayer Asimov Testnet (generated wallet)" });
+      addTx({ type: "deposit", amount: 0, description: "Connected via Generated Wallet (Asimov Testnet)" });
     } catch (e) {
       console.error("Generated wallet connection failed:", e);
     } finally {
@@ -100,30 +123,27 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [addTx]);
 
-  const connectMetaMask = useCallback(async () => {
+  const connectInjected = useCallback(async (providerName?: string) => {
     setIsConnecting(true);
     try {
-      if (typeof window === "undefined" || !(window as any).ethereum) {
-        throw new Error("MetaMask not detected. Please install MetaMask.");
-      }
+      const wallets = getAvailableWallets();
+      const wallet = providerName ? wallets.find(w => w.name === providerName) : wallets[0];
+      if (!wallet) throw new Error("No compatible EVM wallet detected.");
 
-      const ethereum = (window as any).ethereum;
-      const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+      const provider = wallet.provider;
+      const accounts = await provider.request({ method: "eth_requestAccounts" });
       const addr = accounts[0] as Address;
 
-      const cl = createClient({
-        chain: testnetAsimov,
-        account: addr,
-        provider: ethereum,
-      });
+      const cl = createClient({ chain: testnetAsimov, account: addr, provider });
 
       setClient(cl);
-      setAccount(null); // MetaMask manages signing
+      setAccount(null);
       setAddress(addr);
-      setConnectionMode("metamask");
-      addTx({ type: "deposit", amount: 0, description: "Connected to GenLayer Asimov Testnet (MetaMask)" });
+      setPrivateKey(null);
+      setConnectionMode("injected");
+      addTx({ type: "deposit", amount: 0, description: `Connected via ${wallet.name} (Asimov Testnet)` });
     } catch (e) {
-      console.error("MetaMask connection failed:", e);
+      console.error("Injected wallet connection failed:", e);
       throw e;
     } finally {
       setIsConnecting(false);
@@ -135,11 +155,11 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     setAccount(null);
     setAddress("");
     setBalance(0);
+    setPrivateKey(null);
     setConnectionMode("none");
     setTransactions([]);
   }, []);
 
-  // Refresh balance when connected
   useEffect(() => {
     if (isConnected && client && address) {
       refreshBalance();
@@ -168,22 +188,10 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
   return (
     <WalletContext.Provider
       value={{
-        address,
-        balance,
-        transactions,
-        connectionMode,
-        isConnecting,
-        isConnected,
-        client,
-        account,
-        connectGenerated,
-        connectMetaMask,
-        disconnect,
-        refreshBalance,
-        deposit,
-        withdraw,
-        reward,
-        addTransaction: addTx,
+        address, balance, transactions, connectionMode, isConnecting, isConnected,
+        client, account, privateKey,
+        connectGenerated, connectInjected, disconnect, refreshBalance,
+        deposit, withdraw, reward, addTransaction: addTx,
       }}
     >
       {children}
