@@ -4,6 +4,8 @@ import {
   Zap, Globe, Lock, ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
 import logo from "@/assets/genlayer-logo.png";
 import heroBg from "@/assets/hero-bg.jpg";
 
@@ -14,7 +16,8 @@ const products = [
     description: "Social media profile verification powered by AI. Intelligent Contracts browse profiles in real-time and verify ownership through cryptographic challenges.",
     tags: ["Identity", "Social", "Verification"],
     color: "from-cyan-400 to-blue-500",
-    status: "Concept",
+    status: "Live",
+    path: "/identity",
   },
   {
     icon: FileCheck,
@@ -22,7 +25,8 @@ const products = [
     description: "Auto-pay on verified task completion. AI agents validate deliverables against acceptance criteria, releasing payments only when work is confirmed done.",
     tags: ["Payments", "Automation", "Freelance"],
     color: "from-emerald-400 to-teal-500",
-    status: "Concept",
+    status: "Live",
+    path: "/contracts",
   },
   {
     icon: Trophy,
@@ -30,7 +34,8 @@ const products = [
     description: "AI-evaluated work quality for bounty programs. LLM juries assess submissions, score quality, and trigger payouts — no human reviewers needed.",
     tags: ["Bounties", "AI Review", "DeFi"],
     color: "from-amber-400 to-orange-500",
-    status: "Concept",
+    status: "Live",
+    path: "/bounties",
   },
   {
     icon: Brain,
@@ -38,7 +43,8 @@ const products = [
     description: "AI verifies answers from web sources in real-time. Play trivia where no answer key exists — the blockchain fetches and validates truth on the fly.",
     tags: ["Gaming", "Trivia", "Education"],
     color: "from-purple-400 to-violet-500",
-    status: "Concept",
+    status: "Live",
+    path: "/trivia",
   },
   {
     icon: Gamepad2,
@@ -46,7 +52,8 @@ const products = [
     description: "Text-based RPGs with AI-driven narrative outcomes. Every player decision is processed by Intelligent Contracts that craft unique story branches on-chain.",
     tags: ["RPG", "Narrative", "GameFi"],
     color: "from-pink-400 to-rose-500",
-    status: "Concept",
+    status: "Live",
+    path: "/rpg",
   },
   {
     icon: Dice5,
@@ -54,7 +61,8 @@ const products = [
     description: "Real-world outcome bets, AI-verified. Place wagers on anything — sports, elections, weather — and let AI consensus resolve outcomes from live data.",
     tags: ["Betting", "P2P", "Prediction"],
     color: "from-red-400 to-pink-500",
-    status: "Concept",
+    status: "Live",
+    path: "/betting",
   },
 ];
 
@@ -212,36 +220,39 @@ const Index = () => {
             className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {products.map((product) => (
-              <motion.div
-                key={product.title}
-                variants={item}
-                className="group relative rounded-xl bg-card border border-border p-6 hover:border-primary/30 transition-all duration-500 gradient-border overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative z-10">
-                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${product.color} flex items-center justify-center mb-4`}>
-                    <product.icon className="w-6 h-6 text-white" />
-                  </div>
+              <motion.div key={product.title} variants={item}>
+                <Link
+                  to={product.path}
+                  className="group relative block rounded-xl bg-card border border-border p-6 hover:border-primary/30 transition-all duration-500 gradient-border overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${product.color} flex items-center justify-center`}>
+                        <product.icon className="w-6 h-6 text-white" />
+                      </div>
+                      <Badge className="bg-emerald-500/20 text-emerald-400 text-xs">{product.status}</Badge>
+                    </div>
 
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-lg font-bold text-foreground">{product.title}</h3>
-                  </div>
+                    <h3 className="text-lg font-bold text-foreground mb-2">{product.title}</h3>
 
-                  <p className="text-muted-foreground text-sm leading-relaxed mb-4">
-                    {product.description}
-                  </p>
+                    <p className="text-muted-foreground text-sm leading-relaxed mb-4">
+                      {product.description}
+                    </p>
 
-                  <div className="flex flex-wrap gap-2">
-                    {product.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-xs font-mono px-2 py-1 rounded-md bg-secondary text-secondary-foreground"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {product.tags.map((tag) => (
+                        <span key={tag} className="text-xs font-mono px-2 py-1 rounded-md bg-secondary text-secondary-foreground">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    <span className="text-primary text-sm font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
+                      Launch Tool <ArrowRight className="w-4 h-4" />
+                    </span>
                   </div>
-                </div>
+                </Link>
               </motion.div>
             ))}
           </motion.div>
