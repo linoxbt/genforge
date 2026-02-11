@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import {
-  Shield, FileCheck, Trophy, Brain, Gamepad2, Dice5, ArrowRight,
+  Trophy, Brain, Gamepad2, Dice5, ArrowRight,
   Terminal, GitBranch, Code2, Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,20 +9,6 @@ import { Link } from "react-router-dom";
 import { useWallet } from "@/contexts/WalletContext";
 
 const products = [
-  {
-    icon: Shield,
-    title: "Identity Verification",
-    description: "AI-verified social media ownership. Intelligent Contracts browse profiles and confirm identity on-chain.",
-    tags: ["Identity", "Social"],
-    path: "/identity",
-  },
-  {
-    icon: FileCheck,
-    title: "Performance Contracts",
-    description: "Milestone-based auto-pay. AI validates deliverables and releases funds when work is confirmed done.",
-    tags: ["Payments", "Freelance"],
-    path: "/contracts",
-  },
   {
     icon: Trophy,
     title: "Bounty Review",
@@ -33,7 +19,7 @@ const products = [
   {
     icon: Brain,
     title: "Trivia Games",
-    description: "AI verifies answers from web sources in real-time. No pre-set answer keys needed.",
+    description: "AI generates unique questions live and verifies answers from web sources in real-time.",
     tags: ["Gaming", "Trivia"],
     path: "/trivia",
   },
