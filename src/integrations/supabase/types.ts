@@ -14,7 +14,208 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bets: {
+        Row: {
+          amount: number
+          created_at: string
+          event_id: string
+          id: string
+          side: string
+          user_address: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          event_id: string
+          id?: string
+          side: string
+          user_address: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          event_id?: string
+          id?: string
+          side?: string
+          user_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bets_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "betting_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      betting_events: {
+        Row: {
+          category: string
+          created_at: string
+          creator_address: string
+          description: string
+          end_date: string
+          id: string
+          resolution: string | null
+          result: string | null
+          status: string
+          title: string
+          total_against: number
+          total_for: number
+          tx_hash: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          creator_address: string
+          description: string
+          end_date: string
+          id?: string
+          resolution?: string | null
+          result?: string | null
+          status?: string
+          title: string
+          total_against?: number
+          total_for?: number
+          tx_hash?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          creator_address?: string
+          description?: string
+          end_date?: string
+          id?: string
+          resolution?: string | null
+          result?: string | null
+          status?: string
+          title?: string
+          total_against?: number
+          total_for?: number
+          tx_hash?: string | null
+        }
+        Relationships: []
+      }
+      bounties: {
+        Row: {
+          created_at: string
+          creator_address: string
+          criteria: string
+          description: string
+          id: string
+          reward: number
+          status: string
+          title: string
+          tx_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          creator_address: string
+          criteria: string
+          description: string
+          id?: string
+          reward?: number
+          status?: string
+          title: string
+          tx_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          creator_address?: string
+          criteria?: string
+          description?: string
+          id?: string
+          reward?: number
+          status?: string
+          title?: string
+          tx_hash?: string | null
+        }
+        Relationships: []
+      }
+      bounty_submissions: {
+        Row: {
+          bounty_id: string
+          description: string
+          feedback: string | null
+          id: string
+          link: string
+          score: number | null
+          status: string
+          strengths: string[] | null
+          submitted_at: string
+          submitter_address: string
+          weaknesses: string[] | null
+        }
+        Insert: {
+          bounty_id: string
+          description: string
+          feedback?: string | null
+          id?: string
+          link: string
+          score?: number | null
+          status?: string
+          strengths?: string[] | null
+          submitted_at?: string
+          submitter_address: string
+          weaknesses?: string[] | null
+        }
+        Update: {
+          bounty_id?: string
+          description?: string
+          feedback?: string | null
+          id?: string
+          link?: string
+          score?: number | null
+          status?: string
+          strengths?: string[] | null
+          submitted_at?: string
+          submitter_address?: string
+          weaknesses?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bounty_submissions_bounty_id_fkey"
+            columns: ["bounty_id"]
+            isOneToOne: false
+            referencedRelation: "bounties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deployed_contracts: {
+        Row: {
+          code: string
+          contract_address: string | null
+          created_at: string
+          deployer_address: string
+          id: string
+          name: string
+          status: string
+          tx_hash: string | null
+        }
+        Insert: {
+          code: string
+          contract_address?: string | null
+          created_at?: string
+          deployer_address: string
+          id?: string
+          name: string
+          status?: string
+          tx_hash?: string | null
+        }
+        Update: {
+          code?: string
+          contract_address?: string | null
+          created_at?: string
+          deployer_address?: string
+          id?: string
+          name?: string
+          status?: string
+          tx_hash?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

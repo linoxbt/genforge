@@ -1,14 +1,15 @@
 import { motion } from "framer-motion";
 import {
   Trophy, Brain, Gamepad2, Dice5, ArrowRight,
-  Code2, GitBranch, Cpu
+  Code2, GitBranch, Cpu, Wallet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
-import { useWallet, getAvailableWallets } from "@/contexts/WalletContext";
+import { useWallet } from "@/contexts/WalletContext";
 import { useState } from "react";
 import genForgeLogo from "@/assets/genforge-logo.png";
+import WalletModal from "@/components/WalletModal";
 
 const products = [
   {
@@ -59,9 +60,8 @@ const item = {
 };
 
 const Index = () => {
-  const { balance, isConnected, connectGenerated, connectInjected, isConnecting, address } = useWallet();
-  const [showWallets, setShowWallets] = useState(false);
-  const availableWallets = getAvailableWallets();
+  const { balance, isConnected, address } = useWallet();
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -80,31 +80,10 @@ const Index = () => {
                 <span className="text-xs font-mono text-muted-foreground truncate max-w-[120px]">{address}</span>
               </>
             ) : (
-              <div className="flex gap-2 relative">
-                <Button variant="default" size="sm" className="font-mono text-xs" onClick={connectGenerated} disabled={isConnecting}>
-                  {isConnecting ? "..." : "Generate Wallet"}
-                </Button>
-                {availableWallets.length > 0 && (
-                  <div className="relative">
-                    <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => setShowWallets(!showWallets)}>
-                      Connect Wallet
-                    </Button>
-                    {showWallets && (
-                      <div className="absolute top-full right-0 mt-1 bg-card border border-border rounded-md shadow-lg z-50 min-w-[160px]">
-                        {availableWallets.map((w) => (
-                          <button
-                            key={w.name}
-                            onClick={() => { connectInjected(w.name); setShowWallets(false); }}
-                            className="w-full text-left text-xs font-mono px-3 py-2 hover:bg-secondary transition-colors flex items-center gap-2"
-                          >
-                            <span>{w.icon}</span> {w.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <Button variant="default" size="sm" className="font-mono text-xs" onClick={() => setWalletModalOpen(true)}>
+                <Wallet className="w-3.5 h-3.5 mr-1.5" />
+                Connect Wallet
+              </Button>
             )}
             <Button
               variant="outline"
@@ -180,11 +159,9 @@ const Index = () => {
                     <product.icon className="w-5 h-5 text-primary" />
                     <h3 className="font-semibold text-foreground text-sm">{product.title}</h3>
                   </div>
-
                   <p className="text-muted-foreground text-sm leading-relaxed mb-4">
                     {product.description}
                   </p>
-
                   <div className="flex items-center justify-between">
                     <div className="flex gap-1.5">
                       {product.tags.map((tag) => (
@@ -219,6 +196,8 @@ const Index = () => {
           </a>
         </div>
       </footer>
+
+      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </div>
   );
 };
