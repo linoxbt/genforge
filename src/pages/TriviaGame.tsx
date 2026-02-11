@@ -4,8 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
+import { useWallet } from "@/contexts/WalletContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Question {
   id: number;
@@ -41,12 +44,16 @@ const TriviaGame = () => {
   const [answered, setAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [timer, setTimer] = useState(15);
-  const [answers, setAnswers] = useState<{ question: Question; selected: number | null; correct: boolean }[]>([]);
+  const [answers, setAnswers] = useState<{ question: Question; selected: number | null; correct: boolean; aiExplanation?: string }[]>([]);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [questionCount, setQuestionCount] = useState(5);
   const [verifying, setVerifying] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState("");
+  const [aiSource, setAiSource] = useState("");
+  const { toast } = useToast();
+  const { reward } = useWallet();
 
   const categories = ["all", ...Array.from(new Set(questionBank.map((q) => q.category)))];
 
@@ -62,6 +69,8 @@ const TriviaGame = () => {
     setSelectedAnswer(null);
     setAnswered(false);
     setTimer(15);
+    setAiExplanation("");
+    setAiSource("");
     setGameState("playing");
   };
 
@@ -70,23 +79,58 @@ const TriviaGame = () => {
     setSelectedAnswer(index);
     setAnswered(true);
     setVerifying(true);
+    setAiExplanation("");
+    setAiSource("");
 
-    // Simulate AI verification
-    await new Promise((r) => setTimeout(r, 1200));
-    setVerifying(false);
+    const q = questions[currentIndex];
 
-    const correct = index === questions[currentIndex].correctIndex;
-    if (correct) {
-      setScore((s) => s + (100 + timer * 10));
-      setStreak((s) => {
-        const next = s + 1;
-        setBestStreak((b) => Math.max(b, next));
-        return next;
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-trivia-verify", {
+        body: {
+          question: q.question,
+          selectedAnswer: q.options[index],
+          allOptions: q.options,
+        },
       });
-    } else {
-      setStreak(0);
+
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+
+      const aiCorrectIndex = data.correctIndex;
+      const correct = index === aiCorrectIndex;
+
+      // Override the hardcoded correctIndex with AI's answer
+      setAiExplanation(data.explanation || "");
+      setAiSource(data.source || q.source);
+
+      if (correct) {
+        const points = 100 + timer * 10;
+        setScore((s) => s + points);
+        setStreak((s) => {
+          const next = s + 1;
+          setBestStreak((b) => Math.max(b, next));
+          return next;
+        });
+      } else {
+        setStreak(0);
+      }
+
+      // Update the question's correctIndex to match AI
+      questions[currentIndex] = { ...q, correctIndex: aiCorrectIndex };
+      setAnswers((prev) => [...prev, { question: { ...q, correctIndex: aiCorrectIndex }, selected: index, correct, aiExplanation: data.explanation }]);
+    } catch {
+      // Fallback to hardcoded answer
+      const correct = index === q.correctIndex;
+      if (correct) {
+        setScore((s) => s + (100 + timer * 10));
+        setStreak((s) => { const next = s + 1; setBestStreak((b) => Math.max(b, next)); return next; });
+      } else {
+        setStreak(0);
+      }
+      setAnswers((prev) => [...prev, { question: q, selected: index, correct }]);
+      toast({ title: "AI unavailable", description: "Using local verification.", variant: "destructive" });
     }
-    setAnswers((prev) => [...prev, { question: questions[currentIndex], selected: index, correct }]);
+
+    setVerifying(false);
   };
 
   const timeUp = useCallback(() => {
@@ -99,12 +143,19 @@ const TriviaGame = () => {
 
   const nextQuestion = () => {
     if (currentIndex + 1 >= questions.length) {
+      const correctCount = answers.filter((a) => a.correct).length;
+      if (correctCount > 0) {
+        const ethReward = correctCount * 0.01;
+        reward(ethReward, `Trivia: ${correctCount}/${answers.length} correct`);
+      }
       setGameState("results");
     } else {
       setCurrentIndex((i) => i + 1);
       setSelectedAnswer(null);
       setAnswered(false);
       setTimer(15);
+      setAiExplanation("");
+      setAiSource("");
     }
   };
 
@@ -119,171 +170,151 @@ const TriviaGame = () => {
 
   return (
     <AppLayout>
-      <div className="p-8 max-w-4xl mx-auto space-y-8">
+      <div className="p-6 max-w-4xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <Brain className="w-8 h-8 text-purple-400" />
-            On-chain Trivia Games
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Brain className="w-6 h-6 text-primary" />
+            Trivia Games
           </h1>
-          <p className="text-muted-foreground mt-2">
-            AI verifies each answer from web sources in real-time. No pre-set answer keys — truth is fetched live.
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">AI verifies each answer in real-time. Earn ETH for correct answers.</p>
         </div>
 
-        {/* Menu */}
         {gameState === "menu" && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <Card className="gradient-border">
-              <CardHeader><CardTitle>Game Settings</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-foreground block mb-2">Category</label>
-                  <div className="flex flex-wrap gap-2">
-                    {categories.map((cat) => (
-                      <Button
-                        key={cat}
-                        variant={selectedCategory === cat ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedCategory(cat)}
-                        className={selectedCategory === cat ? "bg-primary text-primary-foreground" : ""}
-                      >
-                        {cat === "all" ? "All Categories" : cat}
-                      </Button>
-                    ))}
-                  </div>
+          <Card className="border-border">
+            <CardHeader><CardTitle className="text-base">Game Settings</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Category</label>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => (
+                    <Button key={cat} variant={selectedCategory === cat ? "default" : "outline"} size="sm" onClick={() => setSelectedCategory(cat)}
+                      className={selectedCategory === cat ? "bg-primary text-primary-foreground" : ""}>
+                      {cat === "all" ? "All" : cat}
+                    </Button>
+                  ))}
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground block mb-2">Questions</label>
-                  <div className="flex gap-2">
-                    {[5, 8, 10].map((n) => (
-                      <Button key={n} variant={questionCount === n ? "default" : "outline"} size="sm" onClick={() => setQuestionCount(n)} className={questionCount === n ? "bg-primary text-primary-foreground" : ""}>
-                        {n}
-                      </Button>
-                    ))}
-                  </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Questions</label>
+                <div className="flex gap-2">
+                  {[5, 8, 10].map((n) => (
+                    <Button key={n} variant={questionCount === n ? "default" : "outline"} size="sm" onClick={() => setQuestionCount(n)}
+                      className={questionCount === n ? "bg-primary text-primary-foreground" : ""}>{n}</Button>
+                  ))}
                 </div>
-                <Button onClick={startGame} size="lg" className="bg-primary text-primary-foreground glow-cyan w-full">
-                  <Play className="w-5 h-5 mr-2" /> Start Game
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
+              </div>
+              <Button onClick={startGame} className="bg-primary text-primary-foreground w-full">
+                <Play className="w-4 h-4 mr-2" /> Start Game
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Playing */}
         {gameState === "playing" && currentQ && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            {/* HUD */}
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Badge className="bg-secondary text-secondary-foreground">
-                  {currentIndex + 1}/{questions.length}
-                </Badge>
-                {streak > 1 && (
-                  <Badge className="bg-amber-500/20 text-amber-400">
-                    <Zap className="w-3 h-3 mr-1" /> {streak} streak!
-                  </Badge>
-                )}
+              <div className="flex items-center gap-3">
+                <Badge className="bg-secondary text-secondary-foreground font-mono">{currentIndex + 1}/{questions.length}</Badge>
+                {streak > 1 && <Badge className="bg-primary/20 text-primary"><Zap className="w-3 h-3 mr-1" />{streak}x</Badge>}
               </div>
-              <div className="flex items-center gap-4">
-                <span className="text-lg font-bold text-foreground">{score} pts</span>
-                <div className={`flex items-center gap-1 font-mono text-lg font-bold ${timer <= 5 ? "text-red-400" : "text-foreground"}`}>
-                  <Clock className="w-4 h-4" /> {timer}s
-                </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-foreground font-mono">{score} pts</span>
+                <span className={`font-mono text-sm font-bold ${timer <= 5 ? "text-destructive" : "text-foreground"}`}>
+                  <Clock className="w-3 h-3 inline mr-1" />{timer}s
+                </span>
               </div>
             </div>
 
             <Progress value={((currentIndex) / questions.length) * 100} className="h-1" />
 
-            {/* Question */}
-            <Card className="gradient-border">
+            <Card className="border-border">
               <CardContent className="pt-6">
-                <Badge variant="outline" className="mb-4 text-xs">{currentQ.category}</Badge>
-                <h2 className="text-2xl font-bold text-foreground mb-6">{currentQ.question}</h2>
+                <Badge variant="outline" className="mb-3 text-xs font-mono">{currentQ.category}</Badge>
+                <h2 className="text-xl font-bold text-foreground mb-5">{currentQ.question}</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {currentQ.options.map((option, i) => {
                     const isSelected = selectedAnswer === i;
                     const isCorrect = i === currentQ.correctIndex;
-                    let classes = "p-4 rounded-lg border text-left transition-all cursor-pointer ";
+                    let cls = "p-3 rounded border text-left text-sm transition-all cursor-pointer ";
                     if (answered) {
-                      if (isCorrect) classes += "border-emerald-500 bg-emerald-500/10 text-emerald-400";
-                      else if (isSelected && !isCorrect) classes += "border-red-500 bg-red-500/10 text-red-400";
-                      else classes += "border-border text-muted-foreground opacity-50";
+                      if (isCorrect) cls += "border-primary bg-primary/10 text-primary";
+                      else if (isSelected && !isCorrect) cls += "border-destructive bg-destructive/10 text-destructive";
+                      else cls += "border-border text-muted-foreground opacity-40";
                     } else {
-                      classes += "border-border hover:border-primary/50 hover:bg-secondary/50 text-foreground";
+                      cls += "border-border hover:border-primary/40 text-foreground";
                     }
-
                     return (
-                      <motion.button
-                        key={i}
-                        whileHover={!answered ? { scale: 1.02 } : {}}
-                        whileTap={!answered ? { scale: 0.98 } : {}}
-                        onClick={() => selectAnswer(i)}
-                        disabled={answered}
-                        className={classes}
-                      >
+                      <motion.button key={i} whileHover={!answered ? { scale: 1.01 } : {}} onClick={() => selectAnswer(i)} disabled={answered} className={cls}>
                         <span className="font-mono text-xs text-muted-foreground mr-2">{String.fromCharCode(65 + i)}</span>
                         {option}
-                        {answered && isCorrect && <CheckCircle2 className="w-4 h-4 inline ml-2" />}
-                        {answered && isSelected && !isCorrect && <XCircle className="w-4 h-4 inline ml-2" />}
+                        {answered && isCorrect && <CheckCircle2 className="w-3 h-3 inline ml-1" />}
+                        {answered && isSelected && !isCorrect && <XCircle className="w-3 h-3 inline ml-1" />}
                       </motion.button>
                     );
                   })}
                 </div>
 
                 {verifying && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 bg-primary/10 rounded-lg p-3 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-primary animate-spin" />
-                    <span className="text-sm text-primary">AI verifying answer from {currentQ.source}...</span>
-                  </motion.div>
+                  <div className="mt-3 bg-primary/5 rounded p-2 flex items-center gap-2">
+                    <Clock className="w-3 h-3 text-primary animate-spin" />
+                    <span className="text-xs text-primary font-mono">AI verifying answer...</span>
+                  </div>
                 )}
 
                 {answered && !verifying && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                      Verified via: <span className="text-primary">{currentQ.source}</span>
-                    </p>
-                    <Button onClick={nextQuestion} className="bg-primary text-primary-foreground">
-                      {currentIndex + 1 >= questions.length ? "See Results" : "Next Question →"}
-                    </Button>
-                  </motion.div>
+                  <div className="mt-3 space-y-2">
+                    {aiExplanation && (
+                      <div className="bg-secondary/40 rounded p-2 text-xs text-foreground">
+                        <span className="font-semibold text-primary">AI: </span>{aiExplanation}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground font-mono">
+                        Source: <span className="text-primary">{aiSource || currentQ.source}</span>
+                      </p>
+                      <Button size="sm" onClick={nextQuestion} className="bg-primary text-primary-foreground">
+                        {currentIndex + 1 >= questions.length ? "Results" : "Next →"}
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         )}
 
-        {/* Results */}
         {gameState === "results" && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
-            <Card className="gradient-border text-center p-8">
-              <Trophy className="w-16 h-16 text-amber-400 mx-auto mb-4" />
-              <h2 className="text-4xl font-bold text-foreground">{score} Points</h2>
-              <p className="text-muted-foreground mt-2">
-                {answers.filter((a) => a.correct).length}/{answers.length} correct · Best streak: {bestStreak}
+          <div className="space-y-4">
+            <Card className="text-center p-6 border-border">
+              <Trophy className="w-12 h-12 text-primary mx-auto mb-3" />
+              <h2 className="text-3xl font-bold text-foreground font-mono">{score} pts</h2>
+              <p className="text-muted-foreground text-sm mt-1">
+                {answers.filter((a) => a.correct).length}/{answers.length} correct · Streak: {bestStreak}
               </p>
-              <div className="flex gap-3 justify-center mt-6">
-                <Button onClick={startGame} className="bg-primary text-primary-foreground glow-cyan">
-                  <RotateCcw className="w-4 h-4 mr-2" /> Play Again
-                </Button>
-                <Button variant="outline" onClick={() => setGameState("menu")}>Change Settings</Button>
+              {answers.filter((a) => a.correct).length > 0 && (
+                <p className="text-primary text-sm mt-1 font-mono">
+                  +{(answers.filter((a) => a.correct).length * 0.01).toFixed(2)} ETH earned
+                </p>
+              )}
+              <div className="flex gap-2 justify-center mt-4">
+                <Button onClick={startGame} className="bg-primary text-primary-foreground"><RotateCcw className="w-3 h-3 mr-1" />Again</Button>
+                <Button variant="outline" onClick={() => setGameState("menu")}>Settings</Button>
               </div>
             </Card>
 
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-foreground">Review</h3>
+            <div className="space-y-1">
               {answers.map((a, i) => (
-                <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${a.correct ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
-                  <div className="flex items-center gap-3">
-                    {a.correct ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
-                    <span className="text-sm text-foreground">{a.question.question}</span>
+                <div key={i} className={`flex items-center justify-between p-2 rounded border text-sm ${a.correct ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
+                  <div className="flex items-center gap-2">
+                    {a.correct ? <CheckCircle2 className="w-3 h-3 text-primary" /> : <XCircle className="w-3 h-3 text-destructive" />}
+                    <span className="text-foreground text-xs">{a.question.question}</span>
                   </div>
                   <span className="text-xs text-muted-foreground font-mono">{a.question.options[a.question.correctIndex]}</span>
                 </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
     </AppLayout>

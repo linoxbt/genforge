@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { WalletProvider } from "@/contexts/WalletContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import IdentityVerification from "./pages/IdentityVerification";
@@ -17,20 +18,22 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/identity" element={<IdentityVerification />} />
-          <Route path="/contracts" element={<PerformanceContracting />} />
-          <Route path="/bounties" element={<BountyReview />} />
-          <Route path="/trivia" element={<TriviaGame />} />
-          <Route path="/rpg" element={<GameMaster />} />
-          <Route path="/betting" element={<P2PBetting />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <WalletProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/identity" element={<IdentityVerification />} />
+            <Route path="/contracts" element={<PerformanceContracting />} />
+            <Route path="/bounties" element={<BountyReview />} />
+            <Route path="/trivia" element={<TriviaGame />} />
+            <Route path="/rpg" element={<GameMaster />} />
+            <Route path="/betting" element={<P2PBetting />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </WalletProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
