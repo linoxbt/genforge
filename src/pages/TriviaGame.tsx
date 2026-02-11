@@ -21,7 +21,7 @@ interface Question {
 
 type GameState = "menu" | "loading" | "playing" | "results";
 
-const CATEGORIES = ["all", "GenLayer", "Blockchain", "Crypto", "Science", "History", "Geography", "Technology"];
+const CATEGORIES = ["all", "GenLayer", "Blockchain", "Crypto", "Science", "History", "Geography", "Technology", "Sports", "Music"];
 
 const TriviaGame = () => {
   const [gameState, setGameState] = useState<GameState>("menu");
@@ -30,7 +30,7 @@ const TriviaGame = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answered, setAnswered] = useState(false);
   const [score, setScore] = useState(0);
-  const [timer, setTimer] = useState(15);
+  const [timer, setTimer] = useState(20);
   const [answers, setAnswers] = useState<{ question: Question; selected: number | null; correct: boolean }[]>([]);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
@@ -51,7 +51,6 @@ const TriviaGame = () => {
       });
 
       if (error || data?.error) throw new Error(data?.error || error?.message);
-
       if (!data.questions?.length) throw new Error("No questions generated");
 
       setQuestions(data.questions);
@@ -62,7 +61,7 @@ const TriviaGame = () => {
       setBestStreak(0);
       setSelectedAnswer(null);
       setAnswered(false);
-      setTimer(15);
+      setTimer(20);
       setAiExplanation("");
       setAiSource("");
       setGameState("playing");
@@ -95,7 +94,6 @@ const TriviaGame = () => {
       setAiExplanation(data.explanation || q.explanation || "");
       setAiSource(data.source || q.source);
 
-      // Update question's correctIndex to match AI verification
       questions[currentIndex] = { ...q, correctIndex: aiCorrectIndex };
 
       if (correct) {
@@ -108,7 +106,6 @@ const TriviaGame = () => {
 
       setAnswers((prev) => [...prev, { question: { ...q, correctIndex: aiCorrectIndex }, selected: index, correct }]);
     } catch {
-      // Fallback to generated answer
       const correct = index === q.correctIndex;
       if (correct) {
         setScore((s) => s + (100 + timer * 10));
@@ -144,7 +141,7 @@ const TriviaGame = () => {
       setCurrentIndex((i) => i + 1);
       setSelectedAnswer(null);
       setAnswered(false);
-      setTimer(15);
+      setTimer(20);
       setAiExplanation("");
       setAiSource("");
     }
@@ -167,7 +164,7 @@ const TriviaGame = () => {
             <Brain className="w-6 h-6 text-primary" />
             Trivia Games
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">AI generates unique questions & verifies each answer in real-time.</p>
+          <p className="text-sm text-muted-foreground mt-1">Every question is AI-generated live. Answers verified in real-time from trusted sources.</p>
         </div>
 
         {gameState === "menu" && (
@@ -180,22 +177,22 @@ const TriviaGame = () => {
                   {CATEGORIES.map((cat) => (
                     <Button key={cat} variant={selectedCategory === cat ? "default" : "outline"} size="sm" onClick={() => setSelectedCategory(cat)}
                       className={selectedCategory === cat ? "bg-primary text-primary-foreground" : ""}>
-                      {cat === "all" ? "All" : cat}
+                      {cat === "all" ? "All Categories" : cat}
                     </Button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground block mb-2">Questions</label>
+                <label className="text-sm font-medium text-foreground block mb-2">Number of Questions</label>
                 <div className="flex gap-2">
-                  {[5, 8, 10].map((n) => (
+                  {[5, 8, 10, 15].map((n) => (
                     <Button key={n} variant={questionCount === n ? "default" : "outline"} size="sm" onClick={() => setQuestionCount(n)}
                       className={questionCount === n ? "bg-primary text-primary-foreground" : ""}>{n}</Button>
                   ))}
                 </div>
               </div>
               <Button onClick={startGame} className="bg-primary text-primary-foreground w-full">
-                <Play className="w-4 h-4 mr-2" /> Start Game
+                <Play className="w-4 h-4 mr-2" /> Generate & Start
               </Button>
             </CardContent>
           </Card>
@@ -206,6 +203,7 @@ const TriviaGame = () => {
             <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-sm text-muted-foreground font-mono">AI is generating {questionCount} unique questions...</p>
+              <p className="text-xs text-muted-foreground">Questions are sourced from verified facts</p>
             </CardContent>
           </Card>
         )}
@@ -215,11 +213,12 @@ const TriviaGame = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Badge className="bg-secondary text-secondary-foreground font-mono">{currentIndex + 1}/{questions.length}</Badge>
-                {streak > 1 && <Badge className="bg-primary/20 text-primary"><Zap className="w-3 h-3 mr-1" />{streak}x</Badge>}
+                <Badge variant="outline" className="text-xs font-mono">{currentQ.category}</Badge>
+                {streak > 1 && <Badge className="bg-primary/20 text-primary"><Zap className="w-3 h-3 mr-1" />{streak}x streak</Badge>}
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm font-bold text-foreground font-mono">{score} pts</span>
-                <span className={`font-mono text-sm font-bold ${timer <= 5 ? "text-destructive" : "text-foreground"}`}>
+                <span className={`font-mono text-sm font-bold ${timer <= 5 ? "text-destructive animate-pulse" : "text-foreground"}`}>
                   <Clock className="w-3 h-3 inline mr-1" />{timer}s
                 </span>
               </div>
@@ -229,7 +228,6 @@ const TriviaGame = () => {
 
             <Card className="border-border">
               <CardContent className="pt-6">
-                <Badge variant="outline" className="mb-3 text-xs font-mono">{currentQ.category}</Badge>
                 <h2 className="text-xl font-bold text-foreground mb-5">{currentQ.question}</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -257,8 +255,8 @@ const TriviaGame = () => {
 
                 {verifying && (
                   <div className="mt-3 bg-primary/5 rounded p-2 flex items-center gap-2">
-                    <Clock className="w-3 h-3 text-primary animate-spin" />
-                    <span className="text-xs text-primary font-mono">AI verifying answer...</span>
+                    <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                    <span className="text-xs text-primary font-mono">AI verifying answer from trusted sources...</span>
                   </div>
                 )}
 
@@ -266,7 +264,7 @@ const TriviaGame = () => {
                   <div className="mt-3 space-y-2">
                     {aiExplanation && (
                       <div className="bg-secondary/40 rounded p-2 text-xs text-foreground">
-                        <span className="font-semibold text-primary">AI: </span>{aiExplanation}
+                        <span className="font-semibold text-primary">AI Explanation: </span>{aiExplanation}
                       </div>
                     )}
                     <div className="flex items-center justify-between">
@@ -274,7 +272,7 @@ const TriviaGame = () => {
                         Source: <span className="text-primary">{aiSource || currentQ.source}</span>
                       </p>
                       <Button size="sm" onClick={nextQuestion} className="bg-primary text-primary-foreground">
-                        {currentIndex + 1 >= questions.length ? "Results" : "Next →"}
+                        {currentIndex + 1 >= questions.length ? "View Results" : "Next →"}
                       </Button>
                     </div>
                   </div>
@@ -290,15 +288,15 @@ const TriviaGame = () => {
               <Trophy className="w-12 h-12 text-primary mx-auto mb-3" />
               <h2 className="text-3xl font-bold text-foreground font-mono">{score} pts</h2>
               <p className="text-muted-foreground text-sm mt-1">
-                {answers.filter((a) => a.correct).length}/{answers.length} correct · Streak: {bestStreak}
+                {answers.filter((a) => a.correct).length}/{answers.length} correct · Best Streak: {bestStreak}
               </p>
               {answers.filter((a) => a.correct).length > 0 && (
                 <p className="text-primary text-sm mt-1 font-mono">
-                  +{(answers.filter((a) => a.correct).length * 0.01).toFixed(2)} ETH earned
+                  +{(answers.filter((a) => a.correct).length * 0.01).toFixed(2)} GEN earned
                 </p>
               )}
               <div className="flex gap-2 justify-center mt-4">
-                <Button onClick={startGame} className="bg-primary text-primary-foreground"><RotateCcw className="w-3 h-3 mr-1" />Again</Button>
+                <Button onClick={startGame} className="bg-primary text-primary-foreground"><RotateCcw className="w-3 h-3 mr-1" />Play Again</Button>
                 <Button variant="outline" onClick={() => setGameState("menu")}>Settings</Button>
               </div>
             </Card>
@@ -306,11 +304,11 @@ const TriviaGame = () => {
             <div className="space-y-1">
               {answers.map((a, i) => (
                 <div key={i} className={`flex items-center justify-between p-2 rounded border text-sm ${a.correct ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
-                  <div className="flex items-center gap-2">
-                    {a.correct ? <CheckCircle2 className="w-3 h-3 text-primary" /> : <XCircle className="w-3 h-3 text-destructive" />}
-                    <span className="text-foreground text-xs">{a.question.question}</span>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {a.correct ? <CheckCircle2 className="w-3 h-3 text-primary shrink-0" /> : <XCircle className="w-3 h-3 text-destructive shrink-0" />}
+                    <span className="text-foreground text-xs truncate">{a.question.question}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">{a.question.options[a.question.correctIndex]}</span>
+                  <span className="text-xs text-muted-foreground font-mono ml-2 shrink-0">{a.question.options[a.question.correctIndex]}</span>
                 </div>
               ))}
             </div>

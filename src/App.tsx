@@ -10,6 +10,7 @@ import BountyReview from "./pages/BountyReview";
 import TriviaGame from "./pages/TriviaGame";
 import GameMaster from "./pages/GameMaster";
 import P2PBetting from "./pages/P2PBetting";
+import ContractDeploy from "./pages/ContractDeploy";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/trivia" element={<TriviaGame />} />
             <Route path="/rpg" element={<GameMaster />} />
             <Route path="/betting" element={<P2PBetting />} />
+            <Route path="/deploy" element={<ContractDeploy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -1,41 +1,50 @@
 import { motion } from "framer-motion";
 import {
   Trophy, Brain, Gamepad2, Dice5, ArrowRight,
-  Terminal, GitBranch, Code2, Cpu
+  Code2, GitBranch, Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
-import { useWallet } from "@/contexts/WalletContext";
+import { useWallet, getAvailableWallets } from "@/contexts/WalletContext";
+import { useState } from "react";
+import genForgeLogo from "@/assets/genforge-logo.png";
 
 const products = [
   {
     icon: Trophy,
     title: "Bounty Review",
-    description: "AI-evaluated submissions. LLM juries score quality and trigger payouts automatically.",
-    tags: ["Bounties", "Review"],
+    description: "Post bounties with on-chain escrow. AI evaluates submissions and triggers payouts automatically.",
+    tags: ["Bounties", "On-Chain"],
     path: "/bounties",
   },
   {
     icon: Brain,
     title: "Trivia Games",
-    description: "AI generates unique questions live and verifies answers from web sources in real-time.",
-    tags: ["Gaming", "Trivia"],
+    description: "AI generates unique questions live and verifies answers from real sources in real-time.",
+    tags: ["Gaming", "AI"],
     path: "/trivia",
   },
   {
     icon: Gamepad2,
     title: "Game Master",
-    description: "Text-based RPG with real AI narration. Every choice is processed by AI consensus.",
-    tags: ["RPG", "Narrative"],
+    description: "Text-based RPG with real AI narration. Every choice and outcome is AI-generated live.",
+    tags: ["RPG", "AI"],
     path: "/rpg",
   },
   {
     icon: Dice5,
     title: "P2P Betting",
-    description: "Bet on real-world outcomes. AI browses live data to resolve bets with consensus.",
-    tags: ["Betting", "P2P"],
+    description: "Create bets confirmed on-chain. AI resolves outcomes from live data with consensus.",
+    tags: ["Betting", "On-Chain"],
     path: "/betting",
+  },
+  {
+    icon: Code2,
+    title: "Deploy Contracts",
+    description: "Write Python Intelligent Contracts and deploy them directly to GenLayer Asimov Testnet.",
+    tags: ["Deploy", "Python"],
+    path: "/deploy",
   },
 ];
 
@@ -50,7 +59,9 @@ const item = {
 };
 
 const Index = () => {
-  const { balance, isConnected, connectGenerated, connectMetaMask, isConnecting, address } = useWallet();
+  const { balance, isConnected, connectGenerated, connectInjected, isConnecting, address } = useWallet();
+  const [showWallets, setShowWallets] = useState(false);
+  const availableWallets = getAvailableWallets();
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,8 +69,8 @@ const Index = () => {
       <header className="border-b border-border">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Terminal className="w-6 h-6 text-primary" />
-            <span className="font-mono font-bold text-foreground text-lg">GenLayer</span>
+            <img src={genForgeLogo} alt="GenForge" className="w-7 h-7 rounded" />
+            <span className="font-mono font-bold text-foreground text-lg">GenForge</span>
             <Badge variant="outline" className="text-xs font-mono">testnet</Badge>
           </div>
           <div className="flex items-center gap-4">
@@ -69,13 +80,30 @@ const Index = () => {
                 <span className="text-xs font-mono text-muted-foreground truncate max-w-[120px]">{address}</span>
               </>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex gap-2 relative">
                 <Button variant="default" size="sm" className="font-mono text-xs" onClick={connectGenerated} disabled={isConnecting}>
                   {isConnecting ? "..." : "Generate Wallet"}
                 </Button>
-                <Button variant="outline" size="sm" className="font-mono text-xs" onClick={connectMetaMask} disabled={isConnecting}>
-                  MetaMask
-                </Button>
+                {availableWallets.length > 0 && (
+                  <div className="relative">
+                    <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => setShowWallets(!showWallets)}>
+                      Connect Wallet
+                    </Button>
+                    {showWallets && (
+                      <div className="absolute top-full right-0 mt-1 bg-card border border-border rounded-md shadow-lg z-50 min-w-[160px]">
+                        {availableWallets.map((w) => (
+                          <button
+                            key={w.name}
+                            onClick={() => { connectInjected(w.name); setShowWallets(false); }}
+                            className="w-full text-left text-xs font-mono px-3 py-2 hover:bg-secondary transition-colors flex items-center gap-2"
+                          >
+                            <span>{w.icon}</span> {w.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             <Button
@@ -103,13 +131,13 @@ const Index = () => {
               <span className="text-sm font-mono text-primary">Live on Asimov Testnet</span>
             </div>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground leading-tight">
-              AI-Powered Tools for the
+              Build & Play on the
               <br />
               <span className="text-primary text-glow">GenLayer Blockchain</span>
             </h1>
             <p className="text-lg text-muted-foreground mt-6 max-w-2xl leading-relaxed">
-              Four production-ready tools powered by Intelligent Contracts — AI agents that
-              evaluate work, run games, and settle bets on-chain with LLM consensus.
+              Five production-ready tools powered by Intelligent Contracts — deploy contracts,
+              play AI games, create bounties, and bet P2P — all on-chain.
             </p>
           </motion.div>
 
@@ -178,10 +206,17 @@ const Index = () => {
       <footer className="border-t border-border py-6 px-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center gap-2 font-mono">
-            <Terminal className="w-4 h-4" />
-            <span>GenLayer Ecosystem</span>
+            <img src={genForgeLogo} alt="GenForge" className="w-4 h-4 rounded" />
+            <span>GenForge</span>
           </div>
-          <span>Powered by Intelligent Contracts</span>
+          <a
+            href="https://x.com/linoxbt"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-primary transition-colors font-mono"
+          >
+            Made by Lino
+          </a>
         </div>
       </footer>
     </div>
