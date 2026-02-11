@@ -1,18 +1,15 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Shield, FileCheck, Trophy, Brain, Gamepad2, Dice5, Home, Wallet, Terminal, History } from "lucide-react";
+import { Trophy, Brain, Gamepad2, Dice5, Home, Wallet, Terminal } from "lucide-react";
 import { useWallet } from "@/contexts/WalletContext";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { path: "/", icon: Home, label: "Home" },
-  { path: "/identity", icon: Shield, label: "Identity" },
-  { path: "/contracts", icon: FileCheck, label: "Contracts" },
   { path: "/bounties", icon: Trophy, label: "Bounties" },
   { path: "/trivia", icon: Brain, label: "Trivia" },
   { path: "/rpg", icon: Gamepad2, label: "Game Master" },
   { path: "/betting", icon: Dice5, label: "Betting" },
-  { path: "/wallet", icon: History, label: "Wallet" },
 ];
 
 const AppLayout = ({ children }: { children: ReactNode }) => {

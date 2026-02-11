@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Brain, Play, Trophy, Clock, CheckCircle2, XCircle, RotateCcw, Zap } from "lucide-react";
+import { Brain, Play, Trophy, Clock, CheckCircle2, XCircle, RotateCcw, Zap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,30 +11,17 @@ import { useWallet } from "@/contexts/WalletContext";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Question {
-  id: number;
   question: string;
   options: string[];
   correctIndex: number;
   source: string;
   category: string;
+  explanation?: string;
 }
 
-const questionBank: Question[] = [
-  { id: 1, question: "What consensus mechanism does GenLayer use?", options: ["Proof of Work", "Proof of Stake", "Optimistic Democracy", "Delegated PoS"], correctIndex: 2, source: "docs.genlayer.com", category: "GenLayer" },
-  { id: 2, question: "What language are Intelligent Contracts written in?", options: ["Solidity", "Rust", "Python", "JavaScript"], correctIndex: 2, source: "docs.genlayer.com", category: "GenLayer" },
-  { id: 3, question: "What is the name of GenLayer's current testnet?", options: ["Turing", "Asimov", "Bradbury", "Clarke"], correctIndex: 1, source: "docs.genlayer.com", category: "GenLayer" },
-  { id: 4, question: "Which cryptocurrency has the highest market cap?", options: ["Ethereum", "Bitcoin", "Solana", "BNB"], correctIndex: 1, source: "coinmarketcap.com", category: "Crypto" },
-  { id: 5, question: "What does DeFi stand for?", options: ["Defined Finance", "Decentralized Finance", "Digital Finance", "Deferred Finance"], correctIndex: 1, source: "wikipedia.org", category: "Crypto" },
-  { id: 6, question: "What year was the Bitcoin whitepaper published?", options: ["2006", "2007", "2008", "2009"], correctIndex: 2, source: "bitcoin.org", category: "Crypto" },
-  { id: 7, question: "Which blockchain introduced smart contracts?", options: ["Bitcoin", "Ethereum", "Cardano", "Polkadot"], correctIndex: 1, source: "ethereum.org", category: "Blockchain" },
-  { id: 8, question: "What is a DAO?", options: ["Digital Asset Operation", "Decentralized Autonomous Organization", "Distributed Application Object", "Dynamic Asset Oracle"], correctIndex: 1, source: "wikipedia.org", category: "Blockchain" },
-  { id: 9, question: "What does NFT stand for?", options: ["New Financial Token", "Non-Fungible Token", "Network File Transfer", "Natural Form Token"], correctIndex: 1, source: "wikipedia.org", category: "Crypto" },
-  { id: 10, question: "What is the merge in Ethereum?", options: ["Two chains combining", "PoW to PoS transition", "Layer 2 integration", "Token migration"], correctIndex: 1, source: "ethereum.org", category: "Blockchain" },
-  { id: 11, question: "Which planet is closest to the Sun?", options: ["Venus", "Mercury", "Mars", "Earth"], correctIndex: 1, source: "nasa.gov", category: "Science" },
-  { id: 12, question: "What is the speed of light approximately?", options: ["300,000 km/s", "150,000 km/s", "500,000 km/s", "200,000 km/s"], correctIndex: 0, source: "physics.org", category: "Science" },
-];
+type GameState = "menu" | "loading" | "playing" | "results";
 
-type GameState = "menu" | "playing" | "results";
+const CATEGORIES = ["all", "GenLayer", "Blockchain", "Crypto", "Science", "History", "Geography", "Technology"];
 
 const TriviaGame = () => {
   const [gameState, setGameState] = useState<GameState>("menu");
@@ -44,10 +31,10 @@ const TriviaGame = () => {
   const [answered, setAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [timer, setTimer] = useState(15);
-  const [answers, setAnswers] = useState<{ question: Question; selected: number | null; correct: boolean; aiExplanation?: string }[]>([]);
+  const [answers, setAnswers] = useState<{ question: Question; selected: number | null; correct: boolean }[]>([]);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [questionCount, setQuestionCount] = useState(5);
   const [verifying, setVerifying] = useState(false);
   const [aiExplanation, setAiExplanation] = useState("");
@@ -55,23 +42,34 @@ const TriviaGame = () => {
   const { toast } = useToast();
   const { reward } = useWallet();
 
-  const categories = ["all", ...Array.from(new Set(questionBank.map((q) => q.category)))];
+  const startGame = async () => {
+    setGameState("loading");
 
-  const startGame = () => {
-    const filtered = selectedCategory === "all" ? questionBank : questionBank.filter((q) => q.category === selectedCategory);
-    const shuffled = [...filtered].sort(() => Math.random() - 0.5).slice(0, Math.min(questionCount, filtered.length));
-    setQuestions(shuffled);
-    setCurrentIndex(0);
-    setScore(0);
-    setAnswers([]);
-    setStreak(0);
-    setBestStreak(0);
-    setSelectedAnswer(null);
-    setAnswered(false);
-    setTimer(15);
-    setAiExplanation("");
-    setAiSource("");
-    setGameState("playing");
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-trivia-generate", {
+        body: { category: selectedCategory, count: questionCount },
+      });
+
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+
+      if (!data.questions?.length) throw new Error("No questions generated");
+
+      setQuestions(data.questions);
+      setCurrentIndex(0);
+      setScore(0);
+      setAnswers([]);
+      setStreak(0);
+      setBestStreak(0);
+      setSelectedAnswer(null);
+      setAnswered(false);
+      setTimer(15);
+      setAiExplanation("");
+      setAiSource("");
+      setGameState("playing");
+    } catch (e) {
+      toast({ title: "Failed to generate questions", description: e instanceof Error ? e.message : "Try again", variant: "destructive" });
+      setGameState("menu");
+    }
   };
 
   const selectAnswer = async (index: number) => {
@@ -86,11 +84,7 @@ const TriviaGame = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("ai-trivia-verify", {
-        body: {
-          question: q.question,
-          selectedAnswer: q.options[index],
-          allOptions: q.options,
-        },
+        body: { question: q.question, selectedAnswer: q.options[index], allOptions: q.options },
       });
 
       if (error || data?.error) throw new Error(data?.error || error?.message);
@@ -98,27 +92,23 @@ const TriviaGame = () => {
       const aiCorrectIndex = data.correctIndex;
       const correct = index === aiCorrectIndex;
 
-      // Override the hardcoded correctIndex with AI's answer
-      setAiExplanation(data.explanation || "");
+      setAiExplanation(data.explanation || q.explanation || "");
       setAiSource(data.source || q.source);
+
+      // Update question's correctIndex to match AI verification
+      questions[currentIndex] = { ...q, correctIndex: aiCorrectIndex };
 
       if (correct) {
         const points = 100 + timer * 10;
         setScore((s) => s + points);
-        setStreak((s) => {
-          const next = s + 1;
-          setBestStreak((b) => Math.max(b, next));
-          return next;
-        });
+        setStreak((s) => { const next = s + 1; setBestStreak((b) => Math.max(b, next)); return next; });
       } else {
         setStreak(0);
       }
 
-      // Update the question's correctIndex to match AI
-      questions[currentIndex] = { ...q, correctIndex: aiCorrectIndex };
-      setAnswers((prev) => [...prev, { question: { ...q, correctIndex: aiCorrectIndex }, selected: index, correct, aiExplanation: data.explanation }]);
+      setAnswers((prev) => [...prev, { question: { ...q, correctIndex: aiCorrectIndex }, selected: index, correct }]);
     } catch {
-      // Fallback to hardcoded answer
+      // Fallback to generated answer
       const correct = index === q.correctIndex;
       if (correct) {
         setScore((s) => s + (100 + timer * 10));
@@ -126,8 +116,10 @@ const TriviaGame = () => {
       } else {
         setStreak(0);
       }
+      setAiExplanation(q.explanation || "");
+      setAiSource(q.source);
       setAnswers((prev) => [...prev, { question: q, selected: index, correct }]);
-      toast({ title: "AI unavailable", description: "Using local verification.", variant: "destructive" });
+      toast({ title: "AI verification unavailable", description: "Using generated answer key.", variant: "destructive" });
     }
 
     setVerifying(false);
@@ -145,8 +137,7 @@ const TriviaGame = () => {
     if (currentIndex + 1 >= questions.length) {
       const correctCount = answers.filter((a) => a.correct).length;
       if (correctCount > 0) {
-        const ethReward = correctCount * 0.01;
-        reward(ethReward, `Trivia: ${correctCount}/${answers.length} correct`);
+        reward(correctCount * 0.01, `Trivia: ${correctCount}/${answers.length} correct`);
       }
       setGameState("results");
     } else {
@@ -162,7 +153,7 @@ const TriviaGame = () => {
   useEffect(() => {
     if (gameState !== "playing" || answered) return;
     if (timer <= 0) { timeUp(); return; }
-    const t = setTimeout(() => setTimer((t) => t - 1), 1000);
+    const t = setTimeout(() => setTimer((v) => v - 1), 1000);
     return () => clearTimeout(t);
   }, [timer, gameState, answered, timeUp]);
 
@@ -176,7 +167,7 @@ const TriviaGame = () => {
             <Brain className="w-6 h-6 text-primary" />
             Trivia Games
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">AI verifies each answer in real-time. Earn ETH for correct answers.</p>
+          <p className="text-sm text-muted-foreground mt-1">AI generates unique questions & verifies each answer in real-time.</p>
         </div>
 
         {gameState === "menu" && (
@@ -186,7 +177,7 @@ const TriviaGame = () => {
               <div>
                 <label className="text-sm font-medium text-foreground block mb-2">Category</label>
                 <div className="flex flex-wrap gap-2">
-                  {categories.map((cat) => (
+                  {CATEGORIES.map((cat) => (
                     <Button key={cat} variant={selectedCategory === cat ? "default" : "outline"} size="sm" onClick={() => setSelectedCategory(cat)}
                       className={selectedCategory === cat ? "bg-primary text-primary-foreground" : ""}>
                       {cat === "all" ? "All" : cat}
@@ -206,6 +197,15 @@ const TriviaGame = () => {
               <Button onClick={startGame} className="bg-primary text-primary-foreground w-full">
                 <Play className="w-4 h-4 mr-2" /> Start Game
               </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {gameState === "loading" && (
+          <Card className="border-border">
+            <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-sm text-muted-foreground font-mono">AI is generating {questionCount} unique questions...</p>
             </CardContent>
           </Card>
         )}
