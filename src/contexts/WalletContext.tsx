@@ -50,7 +50,6 @@ export function getAvailableWallets(): { name: string; icon: string; provider: a
   const ethereum = (window as any).ethereum;
   if (!ethereum) return wallets;
 
-  // Handle multiple providers (EIP-6963 or providers array)
   if (ethereum.providers?.length) {
     for (const p of ethereum.providers) {
       if (p.isMetaMask) wallets.push({ name: "MetaMask", icon: "🦊", provider: p });
@@ -92,9 +91,12 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     if (!client || !address) return;
     try {
       const bal = await client.getBalance({ address: address as Address });
-      setBalance(Number(bal) / 1e18);
+      const numBal = Number(bal) / 1e18;
+      console.log("[GenForge] Balance fetched:", numBal, "GEN for", address);
+      setBalance(numBal);
     } catch (e) {
-      console.error("Failed to fetch balance:", e);
+      console.warn("[GenForge] Balance fetch failed (this is normal if RPC is unreachable):", e);
+      // Don't reset balance on error — keep last known value
     }
   }, [client, address]);
 
@@ -134,7 +136,9 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
       const accounts = await provider.request({ method: "eth_requestAccounts" });
       const addr = accounts[0] as Address;
 
-      const cl = createClient({ chain: testnetAsimov, account: addr, provider });
+      // Create a genlayer client pointed at Asimov testnet
+      const acc = createAccount(generatePrivateKey()); // temp account for client creation
+      const cl = createClient({ chain: testnetAsimov, account: acc });
 
       setClient(cl);
       setAccount(null);

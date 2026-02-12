@@ -11,6 +11,8 @@ import TriviaGame from "./pages/TriviaGame";
 import GameMaster from "./pages/GameMaster";
 import P2PBetting from "./pages/P2PBetting";
 import ContractDeploy from "./pages/ContractDeploy";
+import Settings from "./pages/Settings";
+import Docs from "./pages/Docs";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +30,8 @@ const App = () => (
             <Route path="/rpg" element={<GameMaster />} />
             <Route path="/betting" element={<P2PBetting />} />
             <Route path="/deploy" element={<ContractDeploy />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/docs" element={<Docs />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
