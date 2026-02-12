@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Brain, Play, Trophy, Clock, CheckCircle2, XCircle, RotateCcw, Zap, Loader2 } from "lucide-react";
+import { Brain, Play, Trophy, Clock, CheckCircle2, XCircle, RotateCcw, Zap, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
 import { useWallet } from "@/contexts/WalletContext";
 import { supabase } from "@/integrations/supabase/client";
+import WalletModal from "@/components/WalletModal";
 
 interface Question {
   question: string;
@@ -39,10 +40,17 @@ const TriviaGame = () => {
   const [verifying, setVerifying] = useState(false);
   const [aiExplanation, setAiExplanation] = useState("");
   const [aiSource, setAiSource] = useState("");
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const { toast } = useToast();
-  const { reward } = useWallet();
+  const { isConnected, reward } = useWallet();
 
   const startGame = async () => {
+    if (!isConnected) {
+      setWalletModalOpen(true);
+      toast({ title: "Wallet required", description: "Connect your wallet to play and earn GEN rewards.", variant: "destructive" });
+      return;
+    }
+
     setGameState("loading");
 
     try {
@@ -164,8 +172,22 @@ const TriviaGame = () => {
             <Brain className="w-6 h-6 text-primary" />
             Trivia Games
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Every question is AI-generated live. Answers verified in real-time from trusted sources.</p>
+          <p className="text-sm text-muted-foreground mt-1">Every question is AI-generated live. Answers verified in real-time. Earn GEN for correct answers.</p>
         </div>
+
+        {!isConnected && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="flex items-center justify-between py-4">
+              <div className="flex items-center gap-3">
+                <Wallet className="w-5 h-5 text-primary" />
+                <p className="text-sm text-foreground">Connect your wallet to play trivia and earn GEN rewards.</p>
+              </div>
+              <Button size="sm" onClick={() => setWalletModalOpen(true)} className="bg-primary text-primary-foreground text-xs">
+                <Wallet className="w-3 h-3 mr-1" /> Connect
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {gameState === "menu" && (
           <Card className="border-border">
@@ -192,7 +214,7 @@ const TriviaGame = () => {
                 </div>
               </div>
               <Button onClick={startGame} className="bg-primary text-primary-foreground w-full">
-                <Play className="w-4 h-4 mr-2" /> Generate & Start
+                <Play className="w-4 h-4 mr-2" /> {isConnected ? "Generate & Start" : "Connect Wallet to Play"}
               </Button>
             </CardContent>
           </Card>
@@ -315,6 +337,8 @@ const TriviaGame = () => {
           </div>
         )}
       </div>
+
+      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </AppLayout>
   );
 };

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Gamepad2, Sword, Shield, Heart, Skull, Sparkles, Send } from "lucide-react";
+import { Gamepad2, Sword, Shield, Heart, Skull, Sparkles, Send, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,7 +8,9 @@ import { Progress } from "@/components/ui/progress";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
+import { useWallet } from "@/contexts/WalletContext";
 import { supabase } from "@/integrations/supabase/client";
+import WalletModal from "@/components/WalletModal";
 
 interface GameMessage {
   id: string;
@@ -36,8 +38,10 @@ const GameMaster = () => {
   const [choices, setChoices] = useState<string[]>([]);
   const [customAction, setCustomAction] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { isConnected } = useWallet();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,21 +52,18 @@ const GameMaster = () => {
   };
 
   const parseAIResponse = (content: string) => {
-    // Extract JSON stats block
     const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
     let statsChange = { hpChange: 0, goldChange: 0, xpGain: 0, outcome: "neutral" };
     if (jsonMatch) {
       try { statsChange = JSON.parse(jsonMatch[1]); } catch {}
     }
 
-    // Extract choices
     const choicesMatch = content.match(/```choices\s*([\s\S]*?)```/);
     let newChoices: string[] = [];
     if (choicesMatch) {
       try { newChoices = JSON.parse(choicesMatch[1]); } catch {}
     }
 
-    // Clean narrative (remove code blocks)
     const narrative = content
       .replace(/```json[\s\S]*?```/g, "")
       .replace(/```choices[\s\S]*?```/g, "")
@@ -75,10 +76,7 @@ const GameMaster = () => {
     const newHistory = [...chatHistory, { role: "user", content: playerAction }];
 
     const { data, error } = await supabase.functions.invoke("ai-game-master", {
-      body: {
-        messages: newHistory,
-        playerStats: stats,
-      },
+      body: { messages: newHistory, playerStats: stats },
     });
 
     if (error || data?.error) {
@@ -93,6 +91,12 @@ const GameMaster = () => {
   };
 
   const startGame = async () => {
+    if (!isConnected) {
+      setWalletModalOpen(true);
+      toast({ title: "Wallet required", description: "Connect your wallet to play the RPG.", variant: "destructive" });
+      return;
+    }
+
     setPhase("playing");
     setMessages([]);
     setChatHistory([]);
@@ -127,13 +131,11 @@ const GameMaster = () => {
       const content = await callAI(choiceText);
       const { narrative, statsChange, newChoices } = parseAIResponse(content);
 
-      // Apply stats
       const newStats = { ...stats };
       newStats.hp = Math.max(0, Math.min(newStats.maxHp, newStats.hp + (statsChange.hpChange || 0)));
       newStats.gold = Math.max(0, newStats.gold + (statsChange.goldChange || 0));
       newStats.xp += statsChange.xpGain || 0;
 
-      // Level up check
       const xpNeeded = newStats.level * 50;
       if (newStats.xp >= xpNeeded) {
         newStats.level += 1;
@@ -184,13 +186,27 @@ const GameMaster = () => {
           <p className="text-sm text-muted-foreground mt-1">AI-powered text RPG. Real AI narration via Intelligent Contracts.</p>
         </div>
 
+        {!isConnected && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="flex items-center justify-between py-4">
+              <div className="flex items-center gap-3">
+                <Wallet className="w-5 h-5 text-primary" />
+                <p className="text-sm text-foreground">Connect your wallet to play the RPG.</p>
+              </div>
+              <Button size="sm" onClick={() => setWalletModalOpen(true)} className="bg-primary text-primary-foreground text-xs">
+                <Wallet className="w-3 h-3 mr-1" /> Connect
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {phase === "idle" && (
           <Card className="text-center p-10 border-border">
             <Sword className="w-12 h-12 text-primary mx-auto mb-3" />
             <h2 className="text-2xl font-bold text-foreground mb-2">Enter the Dungeon</h2>
             <p className="text-muted-foreground text-sm mb-4">Real AI narrates your adventure. Every outcome is unique.</p>
             <Button onClick={startGame} className="bg-primary text-primary-foreground">
-              <Sparkles className="w-4 h-4 mr-2" /> Begin Adventure
+              <Sparkles className="w-4 h-4 mr-2" /> {isConnected ? "Begin Adventure" : "Connect Wallet to Play"}
             </Button>
           </Card>
         )}
@@ -300,6 +316,8 @@ const GameMaster = () => {
           </>
         )}
       </div>
+
+      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </AppLayout>
   );
 };
