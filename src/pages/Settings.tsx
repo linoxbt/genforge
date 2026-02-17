@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings as SettingsIcon, Key, Eye, EyeOff, Copy, Check, Wallet, Shield, ExternalLink } from "lucide-react";
+import { Settings as SettingsIcon, Key, Eye, EyeOff, Copy, Check, Wallet, Shield, ExternalLink, Droplets, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,55 @@ import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
 import { useWallet } from "@/contexts/WalletContext";
 import WalletModal from "@/components/WalletModal";
+
+const FaucetButton = ({ address }: { address: string }) => {
+  const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(false);
+  const { toast } = useToast();
+  const { refreshBalance } = useWallet();
+
+  const requestTokens = async () => {
+    if (!address) return;
+    setLoading(true);
+    try {
+      const res = await fetch("https://genlayer-faucet.vercel.app/api/faucet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address,
+          network: "Genlayer Testnet",
+          token: "GEN",
+          turnstileToken: "",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "Faucet request failed");
+      }
+      toast({ title: "Tokens requested!", description: "GEN tokens should arrive shortly." });
+      setCooldown(true);
+      setTimeout(() => setCooldown(false), 60000);
+      setTimeout(() => refreshBalance(), 5000);
+    } catch (e: any) {
+      toast({ title: "Faucet error", description: e.message || "Try again later.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={requestTokens}
+      disabled={loading || cooldown}
+      className="text-xs gap-1.5"
+    >
+      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Droplets className="w-3.5 h-3.5" />}
+      {cooldown ? "Cooldown (60s)" : loading ? "Requesting..." : "Request Testnet GEN"}
+    </Button>
+  );
+};
 
 const Settings = () => {
   const { address, balance, isConnected, connectionMode, privateKey, disconnect, transactions } = useWallet();
@@ -98,6 +147,8 @@ const Settings = () => {
                     </div>
                   </div>
                 )}
+
+                <FaucetButton address={address} />
 
                 <Button variant="destructive" size="sm" onClick={disconnect} className="text-xs">
                   Disconnect Wallet
