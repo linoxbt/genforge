@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Trophy, Brain, Gamepad2, Dice5, Home, Code2, Key, Eye, EyeOff, Copy, Check, ExternalLink, Wallet, Settings, BookOpen } from "lucide-react";
+import { Trophy, Brain, Gamepad2, Dice5, Home, Code2, Key, Eye, EyeOff, Copy, Check, ExternalLink, Wallet, Settings, BookOpen, Droplets, Loader2 } from "lucide-react";
 import { useWallet } from "@/contexts/WalletContext";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,45 @@ const navItems = [
   { path: "/docs", icon: BookOpen, label: "Docs" },
   { path: "/settings", icon: Settings, label: "Settings" },
 ];
+
+const SidebarFaucetButton = ({ address }: { address: string }) => {
+  const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(false);
+  const { toast } = useToast();
+  const { refreshBalance } = useWallet();
+
+  const requestTokens = async () => {
+    if (!address) return;
+    setLoading(true);
+    try {
+      const res = await fetch("https://genlayer-faucet.vercel.app/api/faucet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, network: "Genlayer Testnet", token: "GEN", turnstileToken: "" }),
+      });
+      if (!res.ok) throw new Error(await res.text() || "Faucet request failed");
+      toast({ title: "Tokens requested!", description: "GEN tokens should arrive shortly." });
+      setCooldown(true);
+      setTimeout(() => setCooldown(false), 60000);
+      setTimeout(() => refreshBalance(), 5000);
+    } catch (e: any) {
+      toast({ title: "Faucet error", description: e.message || "Try again later.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={requestTokens}
+      disabled={loading || cooldown}
+      className="flex items-center gap-1.5 text-xs font-mono px-2 py-1.5 rounded bg-accent/50 text-accent-foreground hover:bg-accent transition-colors disabled:opacity-50 w-full"
+    >
+      {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Droplets className="w-3 h-3" />}
+      {cooldown ? "Cooldown..." : loading ? "Requesting..." : "Get Testnet GEN"}
+    </button>
+  );
+};
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
@@ -74,6 +113,8 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
                 </div>
                 <p className="text-xs text-muted-foreground font-mono px-2 truncate">{address}</p>
                 <p className="text-xs text-muted-foreground font-mono px-2">Asimov Testnet</p>
+
+                <SidebarFaucetButton address={address} />
 
                 {connectionMode === "generated" && privateKey && (
                   <div className="px-2 space-y-1">
