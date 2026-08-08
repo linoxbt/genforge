@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dice5, Plus, TrendingUp, TrendingDown, Clock, CheckCircle2, Users, Coins, Loader2, AlertTriangle } from "lucide-react";
+import { Dice5, Plus, TrendingUp, TrendingDown, Clock, CheckCircle2, Users, Coins, Loader2, AlertTriangle, Info, ExternalLink, Copy, Check, Calendar } from "lucide-react";
 import { parseEther, formatEther } from "viem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
@@ -37,6 +38,8 @@ const P2PBetting = () => {
   const [confirming, setConfirming] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const { isConnected, client } = useWallet();
 
@@ -153,6 +156,14 @@ const P2PBetting = () => {
     return { for: Math.round((forAmt / total) * 100), against: Math.round((againstAmt / total) * 100) };
   };
 
+  const selectedEvent = events.find((e) => e.id === selectedEventId) || null;
+
+  const copyAddress = (addr: string) => {
+    navigator.clipboard.writeText(addr);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <AppLayout>
       <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -230,12 +241,23 @@ const P2PBetting = () => {
                             {resolving === event.id ? "AI Resolving..." : event.status}
                           </Badge>
                         </div>
-                        <CardTitle className="text-base">{event.title}</CardTitle>
+                        <button
+                          onClick={() => setSelectedEventId(event.id)}
+                          className="text-left group/title"
+                        >
+                          <CardTitle className="text-base group-hover/title:text-primary transition-colors">{event.title}</CardTitle>
+                        </button>
                         <CardDescription className="text-xs">{event.description}</CardDescription>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <p className="text-xl font-bold font-mono text-foreground">{totalPool.toFixed(4)} GEN</p>
                         <p className="text-xs text-muted-foreground"><Users className="w-3 h-3 inline" /> {bets.length}</p>
+                        <button
+                          onClick={() => setSelectedEventId(event.id)}
+                          className="text-xs text-primary hover:underline flex items-center gap-1 mt-1 ml-auto"
+                        >
+                          <Info className="w-3 h-3" /> Details
+                        </button>
                       </div>
                     </div>
                   </CardHeader>
@@ -294,6 +316,100 @@ const P2PBetting = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={!!selectedEvent} onOpenChange={(open) => !open && setSelectedEventId(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          {selectedEvent && (() => {
+            const odds = getOdds(selectedEvent);
+            const bets = selectedEvent.bets || [];
+            const forAmt = Number(formatEther(BigInt(selectedEvent.total_for)));
+            const againstAmt = Number(formatEther(BigInt(selectedEvent.total_against)));
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className="text-xs font-mono">{selectedEvent.category}</Badge>
+                    <Badge variant="outline" className={selectedEvent.status === "resolved" ? "text-primary" : "text-foreground"}>
+                      {resolving === selectedEvent.id ? "AI Resolving..." : selectedEvent.status}
+                    </Badge>
+                  </div>
+                  <DialogTitle className="text-lg">{selectedEvent.title}</DialogTitle>
+                  <DialogDescription className="text-sm text-foreground/80">{selectedEvent.description}</DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-primary"><TrendingUp className="w-3 h-3 inline" /> Yes ({odds.for}%) · {forAmt.toFixed(4)} GEN</span>
+                      <span className="text-destructive">{againstAmt.toFixed(4)} GEN · No ({odds.against}%) <TrendingDown className="w-3 h-3 inline" /></span>
+                    </div>
+                    <div className="h-2 bg-destructive/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${odds.for}%` }} />
+                    </div>
+                  </div>
+
+                  {selectedEvent.status === "resolved" && selectedEvent.result && (
+                    <div className={`rounded p-3 text-sm ${selectedEvent.result === "for" ? "bg-primary/10 border border-primary/30" : "bg-destructive/10 border border-destructive/30"}`}>
+                      <CheckCircle2 className={`w-4 h-4 inline mr-1 ${selectedEvent.result === "for" ? "text-primary" : "text-destructive"}`} />
+                      <span className="font-bold text-foreground">Resolved: {selectedEvent.result === "for" ? "YES" : "NO"}</span>
+                      <p className="text-xs text-muted-foreground mt-1">{selectedEvent.resolution}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="bg-secondary/30 rounded p-2">
+                      <p className="text-muted-foreground font-mono uppercase mb-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> End Date</p>
+                      <p className="text-foreground font-mono">{selectedEvent.end_date || "—"}</p>
+                    </div>
+                    <div className="bg-secondary/30 rounded p-2">
+                      <p className="text-muted-foreground font-mono uppercase mb-1">Total Pool</p>
+                      <p className="text-foreground font-mono">{(forAmt + againstAmt).toFixed(4)} GEN</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-secondary/30 rounded p-2">
+                    <p className="text-xs text-muted-foreground font-mono uppercase mb-1">Created By</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-mono text-foreground break-all flex-1">{selectedEvent.creator_address}</p>
+                      <button onClick={() => copyAddress(selectedEvent.creator_address)}>
+                        {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-mono text-muted-foreground uppercase mb-1.5">All Bets ({bets.length})</p>
+                    {bets.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-3">No bets placed yet.</p>
+                    ) : (
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {[...bets].reverse().map((bet) => (
+                          <div key={bet.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-secondary/20">
+                            <span className="font-mono text-muted-foreground">{bet.user_address.slice(0, 10)}...{bet.user_address.slice(-6)}</span>
+                            <span className="font-mono text-foreground flex items-center gap-1.5">
+                              {formatEther(BigInt(bet.amount))} GEN
+                              <Badge variant="outline" className={`text-xs ${bet.side === "for" ? "text-primary" : "text-destructive"}`}>{bet.side === "for" ? "YES" : "NO"}</Badge>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <a
+                    href={`https://explorer-asimov.genlayer.com/address/${CONTRACTS.predictionMarket}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    View contract on GenLayer Explorer <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };
