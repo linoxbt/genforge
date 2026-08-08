@@ -4,21 +4,19 @@ import { defineChain } from "@reown/appkit/networks";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider } from "wagmi";
+import { testnetAsimov } from "genlayer-js/chains";
 
-// GenLayer Asimov Testnet is not in Reown/viem's default chain list.
+// GenLayer Asimov Testnet is not in Reown/viem's default chain list, so it needs
+// a local definition. Built from genlayer-js's own canonical `testnetAsimov`
+// (which carries GenLayer-specific fields like consensusMainContract and
+// defaultNumberOfInitialValidators that genlayer-js's write path requires,
+// and that a hand-rolled chain object won't have), plus the CAIP fields Reown
+// needs for wallet-network-switching. One object serves both consumers instead
+// of two chain definitions drifting apart.
 export const genlayerAsimov = defineChain({
-  id: 4221,
+  ...testnetAsimov,
   caipNetworkId: "eip155:4221",
   chainNamespace: "eip155",
-  name: "GenLayer Asimov Testnet",
-  nativeCurrency: { name: "GEN Token", symbol: "GEN", decimals: 18 },
-  rpcUrls: {
-    default: { http: ["https://zksync-os-testnet-genlayer.zksync.dev"] },
-  },
-  blockExplorers: {
-    default: { name: "GenLayer Asimov Explorer", url: "https://explorer-asimov.genlayer.com/" },
-  },
-  testnet: true,
 });
 
 const projectId = import.meta.env.VITE_REOWN_PROJECT_ID || "";
