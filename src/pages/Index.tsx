@@ -188,13 +188,13 @@ const Index = () => {
               No fake transactions, no off-chain database standing in for a blockchain.
             </p>
 
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Button asChild size="lg" className="font-mono glow-green text-base px-6">
+            <div className="mt-9 flex flex-nowrap items-center gap-2 sm:gap-3">
+              <Button asChild size="lg" className="font-mono glow-green text-sm sm:text-base px-4 sm:px-6 shrink-0">
                 <Link to="/bounties">
                   Launch App <ArrowRight className="w-4 h-4 ml-1.5" />
                 </Link>
               </Button>
-              <Button asChild variant="ghost" size="lg" className="font-mono text-base">
+              <Button asChild variant="ghost" size="lg" className="font-mono text-sm sm:text-base px-3 sm:px-4 shrink-0">
                 <Link to="/docs">Read the Docs</Link>
               </Button>
             </div>
