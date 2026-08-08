@@ -21,7 +21,7 @@ export const genlayerAsimov = defineChain({
   testnet: true,
 });
 
-const projectId = import.meta.env.VITE_REOWN_PROJECT_ID as string | undefined;
+const projectId = import.meta.env.VITE_REOWN_PROJECT_ID || "";
 
 const metadata = {
   name: "GenForge",
@@ -34,21 +34,26 @@ const networks: [typeof genlayerAsimov] = [genlayerAsimov];
 
 export const wagmiAdapter = new WagmiAdapter({
   networks,
-  projectId: projectId || "",
+  projectId,
   ssr: false,
 });
 
-if (projectId) {
-  createAppKit({
-    adapters: [wagmiAdapter],
-    networks,
-    projectId,
-    metadata,
-    defaultNetwork: genlayerAsimov,
-    features: { analytics: false, email: false, socials: false },
-    themeMode: "dark",
-  });
-} else {
+// Always initialize AppKit, even with an empty projectId — WalletContext calls
+// useAppKit() unconditionally (it's a hook, it can't be called conditionally),
+// and that hook throws synchronously during render if createAppKit() was never
+// called. With no error boundary anywhere in the tree, that throw would blank
+// the entire app rather than just failing to connect a wallet.
+createAppKit({
+  adapters: [wagmiAdapter],
+  networks,
+  projectId,
+  metadata,
+  defaultNetwork: genlayerAsimov,
+  features: { analytics: false, email: false, socials: false },
+  themeMode: "dark",
+});
+
+if (!projectId) {
   console.warn(
     "[GenForge] VITE_REOWN_PROJECT_ID is not set — wallet connection will not work. " +
     "Get a free project ID at https://cloud.reown.com and add it to your .env file."
