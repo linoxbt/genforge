@@ -116,7 +116,7 @@ const item = {
 };
 
 const Index = () => {
-  const { balance, isConnected, address, connect } = useWallet();
+  const { balance, isConnected, address } = useWallet();
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
@@ -133,12 +133,6 @@ const Index = () => {
                 <span className="font-mono text-foreground font-semibold">{balance.toFixed(4)} GEN</span>
                 <span className="text-xs font-mono text-muted-foreground truncate max-w-[120px]">{address}</span>
               </div>
-            )}
-            {!isConnected && (
-              <Button variant="outline" size="sm" className="font-mono text-xs" onClick={connect}>
-                <Wallet className="w-3.5 h-3.5 mr-1.5" />
-                Connect Wallet
-              </Button>
             )}
             <Button asChild size="sm" className="font-mono text-xs bg-primary text-primary-foreground">
               <Link to="/bounties">
@@ -183,13 +177,6 @@ const Index = () => {
 
         <div className="max-w-4xl mx-auto relative">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <div className="flex items-center gap-2 mb-5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-              </span>
-              <span className="text-sm font-mono text-primary">Live on GenLayer Asimov</span>
-            </div>
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-foreground leading-[1.05]">
               Build & play on the
               <br />
@@ -207,11 +194,6 @@ const Index = () => {
                   Launch App <ArrowRight className="w-4 h-4 ml-1.5" />
                 </Link>
               </Button>
-              {!isConnected && (
-                <Button size="lg" variant="outline" className="font-mono text-base px-6" onClick={connect}>
-                  <Wallet className="w-4 h-4 mr-1.5" /> Connect Wallet
-                </Button>
-              )}
               <Button asChild variant="ghost" size="lg" className="font-mono text-base">
                 <Link to="/docs">Read the Docs</Link>
               </Button>
