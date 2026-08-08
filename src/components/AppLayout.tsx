@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Trophy, Brain, Gamepad2, Dice5, Home, Code2, ExternalLink, Wallet, Settings, BookOpen, Droplets, Loader2 } from "lucide-react";
+import { Trophy, Brain, Gamepad2, Dice5, Home, Code2, Wallet, Settings, BookOpen, Droplets, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useWallet } from "@/contexts/WalletContext";
 import { useToast } from "@/hooks/use-toast";
@@ -155,14 +155,6 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
                 <img src={genForgeLogo} alt="GenForge" className="w-4 h-4 rounded" />
                 <span>GenForge</span>
               </div>
-              <a
-                href="https://x.com/linoxbt"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-primary transition-colors font-mono flex items-center gap-1"
-              >
-                Made by Lino <ExternalLink className="w-3 h-3" />
-              </a>
             </div>
           </footer>
         </SidebarInset>

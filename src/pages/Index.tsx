@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import {
   Trophy, Brain, Gamepad2, Dice5, ArrowRight,
   Code2, Cpu, Wallet, ShieldCheck, Eye, Lock,
-  Sparkles, Boxes, Vote, Github, Twitter, ExternalLink,
+  Sparkles, Boxes, Vote, Github, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -348,9 +348,6 @@ const Index = () => {
             </a>
             <a href="https://github.com/linoxbt/genforge" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1">
               <Github className="w-3.5 h-3.5" /> GitHub
-            </a>
-            <a href="https://x.com/linoxbt" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1">
-              <Twitter className="w-3.5 h-3.5" /> Made by Lino
             </a>
           </div>
         </div>
