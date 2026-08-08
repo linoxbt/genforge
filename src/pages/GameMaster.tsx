@@ -111,7 +111,7 @@ const GameMaster = () => {
             <Gamepad2 className="w-6 h-6 text-primary" />
             Game Master
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">A GenLayer Intelligent Contract narrates your adventure — every scene is a real on-chain AI call.</p>
+          <p className="text-sm text-muted-foreground mt-1">A GenLayer Intelligent Contract narrates your adventure. Every scene is a real on-chain AI call.</p>
         </div>
 
         {!isConnected && (
@@ -143,7 +143,7 @@ const GameMaster = () => {
           <Card className="border-border">
             <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="animate-pulse text-primary text-sm font-mono">⚔️ Intelligent Contract is generating your opening scene...</div>
-              <p className="text-xs text-muted-foreground">This is a real on-chain transaction — it can take a little while.</p>
+              <p className="text-xs text-muted-foreground">This is a real on-chain transaction, it can take a little while.</p>
             </CardContent>
           </Card>
         )}

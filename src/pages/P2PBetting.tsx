@@ -138,7 +138,7 @@ const P2PBetting = () => {
         args: [BigInt(eventId)],
         value: 0n,
       });
-      // Real on-chain AI resolution + validator consensus — slower than an API call.
+      // Real on-chain AI resolution + validator consensus, slower than an API call.
       const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: WAIT_STATUS, retries: 150, interval: 5000 });
       if (!isExecutionSuccess(receipt)) throw new Error(executionErrorMessage(receipt));
       fetchEvents();
@@ -196,7 +196,7 @@ const P2PBetting = () => {
                 <CardHeader><CardTitle className="text-base">Create Betting Event (On-Chain)</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <Input placeholder="Event Title (e.g. 'BTC > $200K by 2027')" value={title} onChange={(e) => setTitle(e.target.value)} />
-                  <Textarea placeholder="Resolution conditions — how should the AI determine the outcome?" value={description} onChange={(e) => setDescription(e.target.value)} />
+                  <Textarea placeholder="Resolution conditions: how should the AI determine the outcome?" value={description} onChange={(e) => setDescription(e.target.value)} />
                   <div className="grid grid-cols-2 gap-3">
                     <Select value={category} onValueChange={setCategory}>
                       <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
@@ -359,7 +359,7 @@ const P2PBetting = () => {
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div className="bg-secondary/30 rounded p-2">
                       <p className="text-muted-foreground font-mono uppercase mb-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> End Date</p>
-                      <p className="text-foreground font-mono">{selectedEvent.end_date || "—"}</p>
+                      <p className="text-foreground font-mono">{selectedEvent.end_date || "N/A"}</p>
                     </div>
                     <div className="bg-secondary/30 rounded p-2">
                       <p className="text-muted-foreground font-mono uppercase mb-1">Total Pool</p>

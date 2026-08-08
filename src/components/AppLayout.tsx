@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Trophy, Brain, Gamepad2, Dice5, Home, Code2, Wallet, Settings, BookOpen, Droplets, Loader2 } from "lucide-react";
+import { Trophy, Brain, Gamepad2, Dice5, Code2, Wallet, Settings, BookOpen, Droplets, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useWallet } from "@/contexts/WalletContext";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { path: "/", icon: Home, label: "Home" },
   { path: "/bounties", icon: Trophy, label: "Bounties" },
   { path: "/trivia", icon: Brain, label: "Trivia" },
   { path: "/rpg", icon: Gamepad2, label: "Game Master" },

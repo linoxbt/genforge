@@ -2,7 +2,7 @@ import type { Address } from "viem";
 
 /**
  * Addresses of GenForge's intelligent contracts, deployed once to GenLayer Asimov Testnet.
- * Source: /root/Genforge/contracts/*.py — see each contract for its ABI/behavior.
+ * Source: /root/Genforge/contracts/*.py, see each contract for its ABI/behavior.
  * Redeploying a contract (contracts/*.py) requires updating its address here.
  */
 export const CONTRACTS = {

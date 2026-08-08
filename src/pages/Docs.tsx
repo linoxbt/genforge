@@ -8,8 +8,8 @@ const sections = [
     icon: Zap,
     title: "Getting Started",
     content: [
-      "**GenForge** is a suite of decentralized applications built on the GenLayer Asimov Testnet — an AI-powered Layer 1 blockchain that uses Python-based Intelligent Contracts.",
-      "To begin, connect a wallet using the sidebar or homepage — GenForge uses Reown to support MetaMask, Coinbase Wallet, WalletConnect, and any other EVM-compatible wallet. Nothing is generated or stored for you; your keys never leave your own wallet.",
+      "**GenForge** is a suite of decentralized applications built on the GenLayer Asimov Testnet, an AI-powered Layer 1 blockchain that uses Python-based Intelligent Contracts.",
+      "To begin, connect a wallet using the sidebar or homepage. GenForge uses Reown to support MetaMask, Coinbase Wallet, WalletConnect, and any other EVM-compatible wallet. Nothing is generated or stored for you; your keys never leave your own wallet.",
       "All operations use real GEN tokens on the Asimov Testnet, signed locally by your wallet before being broadcast.",
     ],
   },
@@ -17,7 +17,7 @@ const sections = [
     icon: Wallet,
     title: "Wallet & Tokens",
     content: [
-      "GenForge connects to wallets via **Reown AppKit** — MetaMask, Coinbase Wallet, Rabby, WalletConnect-compatible mobile wallets, and any other injected EVM provider. Transactions are signed directly by your wallet; GenForge never has access to your keys.",
+      "GenForge connects to wallets via **Reown AppKit**: MetaMask, Coinbase Wallet, Rabby, WalletConnect-compatible mobile wallets, and any other injected EVM provider. Transactions are signed directly by your wallet; GenForge never has access to your keys.",
       "Your GEN balance is fetched directly from the GenLayer Asimov Testnet RPC and refreshes every 30 seconds. Creating bounties and bets sends real GEN as part of the transaction, held in the relevant Intelligent Contract's own on-chain balance.",
     ],
   },
@@ -25,26 +25,26 @@ const sections = [
     icon: Trophy,
     title: "Bounty Review",
     content: [
-      "Bounties run on a dedicated `BountyBoard` Intelligent Contract. When you create a bounty, the reward amount is sent with the transaction and escrowed in the contract's on-chain balance — not tracked in a database.",
+      "Bounties run on a dedicated `BountyBoard` Intelligent Contract. When you create a bounty, the reward amount is sent with the transaction and escrowed in the contract's on-chain balance, not tracked in a database.",
       "Anyone can submit work against open bounties by providing a description and link. Anyone can then trigger **AI Review** on a submission, which runs *inside* the contract itself.",
-      "The contract calls an LLM directly via GenLayer's non-determinism module and reaches consensus with other validators on the score (0-100) before committing it on-chain. Submissions scoring ≥70 are accepted and the contract pays the escrowed reward straight to the submitter's address — atomically, in the same transaction. This can take longer than an instant API call, since it's real multi-validator consensus.",
+      "The contract calls an LLM directly via GenLayer's non-determinism module and reaches consensus with other validators on the score (0-100) before committing it on-chain. Submissions scoring ≥70 are accepted and the contract pays the escrowed reward straight to the submitter's address, atomically, in the same transaction. This can take longer than an instant API call, since it's real multi-validator consensus.",
     ],
   },
   {
     icon: Brain,
     title: "Trivia Games",
     content: [
-      "Each question is generated on-chain by the `TriviaRewards` Intelligent Contract — the LLM call and its correct-answer key both go through validator consensus before the question is ever shown to you, so nothing is scripted.",
-      "Submitting an answer is a fast, fully deterministic on-chain check against the consensus-agreed answer — no second AI call is needed. Because all contract state is public, a technically sophisticated user could in principle read the answer directly from chain state before answering; this is an inherent tradeoff of full transparency, not a bug.",
-      "Correct answers pay a small real GEN reward directly from the contract's balance (funded via its `fund_rewards` method) — base 100 points + a speed bonus based on how quickly you answer once the question loads. A wallet connection is required to play.",
+      "Each question is generated on-chain by the `TriviaRewards` Intelligent Contract. The LLM call and its correct-answer key both go through validator consensus before the question is ever shown to you, so nothing is scripted.",
+      "Submitting an answer is a fast, fully deterministic on-chain check against the consensus-agreed answer; no second AI call is needed. Because all contract state is public, a technically sophisticated user could in principle read the answer directly from chain state before answering; this is an inherent tradeoff of full transparency, not a bug.",
+      "Correct answers pay a small real GEN reward directly from the contract's balance (funded via its `fund_rewards` method): base 100 points plus a speed bonus based on how quickly you answer once the question loads. A wallet connection is required to play.",
     ],
   },
   {
     icon: Gamepad2,
     title: "Game Master (RPG)",
     content: [
-      "A fully AI-narrated text RPG backed by the `DungeonMaster` Intelligent Contract. Every scene, encounter, and outcome is generated by a real on-chain LLM call, validated by consensus, and permanently recorded in contract storage — no scripted content, and nothing happens client-side.",
-      "You have stats (HP, Attack, Defense, Gold, XP) that change based on the AI-determined, consensus-agreed outcome of each turn. Level up by earning XP — level-ups pay a small GEN reward from the contract's funded reward pool. The game ends when HP reaches 0.",
+      "A fully AI-narrated text RPG backed by the `DungeonMaster` Intelligent Contract. Every scene, encounter, and outcome is generated by a real on-chain LLM call, validated by consensus, and permanently recorded in contract storage: no scripted content, and nothing happens client-side.",
+      "You have stats (HP, Attack, Defense, Gold, XP) that change based on the AI-determined, consensus-agreed outcome of each turn. Level up by earning XP; level-ups pay a small GEN reward from the contract's funded reward pool. The game ends when HP reaches 0.",
       "You can choose from AI-suggested actions or type custom commands. Each turn is its own on-chain transaction, so expect a real wait for consensus rather than an instant reply. A wallet connection is required to play.",
     ],
   },
@@ -52,9 +52,9 @@ const sections = [
     icon: Dice5,
     title: "P2P Betting",
     content: [
-      "Create prediction markets on any topic via the `PredictionMarket` Intelligent Contract. Every betting event, and every bet placed against it, is a real on-chain transaction with a real, verifiable transaction hash — not a display-only string.",
+      "Create prediction markets on any topic via the `PredictionMarket` Intelligent Contract. Every betting event, and every bet placed against it, is a real on-chain transaction with a real, verifiable transaction hash, not a display-only string.",
       "Users bet GEN tokens on YES or NO outcomes; the wagered GEN is held directly in the contract's balance. The odds bar updates from the live on-chain pool.",
-      "Anyone can trigger **AI Resolution** once at least one bet has been placed — the contract calls an LLM to reason about the outcome, reaches consensus with validators, and pays out the winning side proportionally from the pool in the same transaction.",
+      "Anyone can trigger **AI Resolution** once at least one bet has been placed. The contract calls an LLM to reason about the outcome, reaches consensus with validators, and pays out the winning side proportionally from the pool in the same transaction.",
     ],
   },
   {
@@ -62,7 +62,7 @@ const sections = [
     title: "Deploy Contracts",
     content: [
       "Write Python Intelligent Contracts directly in the browser and deploy them to the GenLayer Asimov Testnet.",
-      "Intelligent Contracts are Python classes that inherit from `gl.Contract`, exposing `@gl.public.view` and `@gl.public.write` methods. They can browse the web and call LLMs via `gl.nondet.exec_prompt`, with validator consensus over the non-deterministic result. Every contract must start with a pinned `# { \"Depends\": \"py-genlayer:...\" }` runner header — unpinned or `:latest`/`:test` aliases are rejected by the network.",
+      "Intelligent Contracts are Python classes that inherit from `gl.Contract`, exposing `@gl.public.view` and `@gl.public.write` methods. They can browse the web and call LLMs via `gl.nondet.exec_prompt`, with validator consensus over the non-deterministic result. Every contract must start with a pinned `# { \"Depends\": \"py-genlayer:...\" }` runner header; unpinned or `:latest`/`:test` aliases are rejected by the network.",
       "Deployed contracts are recorded with their address, transaction hash, and deployment status, stored locally in your browser so your list persists across sessions on this device.",
     ],
   },
@@ -70,9 +70,9 @@ const sections = [
     icon: Shield,
     title: "Security & Privacy",
     content: [
-      "• GenForge never generates, stores, or has access to your private keys — every wallet is connected and signed through Reown, using your own extension or mobile wallet.",
+      "• GenForge never generates, stores, or has access to your private keys. Every wallet is connected and signed through Reown, using your own extension or mobile wallet.",
       "• All on-chain transactions are signed locally by your wallet before being broadcast to the GenLayer network.",
-      "• Escrow for bounties and bets lives directly in each Intelligent Contract's on-chain balance — there is no off-chain or application-level ledger standing in for it.",
+      "• Escrow for bounties and bets lives directly in each Intelligent Contract's on-chain balance. There is no off-chain or application-level ledger standing in for it.",
       "• This is a testnet application. Do not use real funds or sensitive data.",
     ],
   },
@@ -88,7 +88,7 @@ const Docs = () => {
             Documentation
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Complete guide to using GenForge — the GenLayer testnet toolkit.
+            Complete guide to using GenForge, the GenLayer testnet toolkit.
           </p>
         </div>
 

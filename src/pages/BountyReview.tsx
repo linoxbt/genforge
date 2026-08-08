@@ -147,7 +147,7 @@ const BountyReview = () => {
         args: [BigInt(bountyId), BigInt(submissionId)],
         value: 0n,
       });
-      // AI review + validator consensus can take a while — this is a real on-chain
+      // AI review + validator consensus can take a while: this is a real on-chain
       // Intelligent Contract call, not an instant API response.
       const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: WAIT_STATUS, retries: 150, interval: 5000 });
       if (!isExecutionSuccess(receipt)) throw new Error(executionErrorMessage(receipt));

@@ -216,7 +216,7 @@ const TriviaGame = () => {
                       className={questionCount === n ? "bg-primary text-primary-foreground" : ""}>{n}</Button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Each question is generated as a real on-chain transaction — fewer questions means less waiting.</p>
+                <p className="text-xs text-muted-foreground mt-1">Each question is generated as a real on-chain transaction, so fewer questions means less waiting.</p>
               </div>
               <Button onClick={startGame} className="bg-primary text-primary-foreground w-full">
                 <Play className="w-4 h-4 mr-2" /> {isConnected ? "Generate & Start" : "Connect Wallet to Play"}
@@ -230,7 +230,7 @@ const TriviaGame = () => {
             <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-sm text-muted-foreground font-mono">Intelligent Contract is generating a question via validator consensus...</p>
-              <p className="text-xs text-muted-foreground">This is a real on-chain transaction — it can take a little while.</p>
+              <p className="text-xs text-muted-foreground">This is a real on-chain transaction, it can take a little while.</p>
             </CardContent>
           </Card>
         )}
@@ -341,7 +341,7 @@ const TriviaGame = () => {
                     <span className="text-foreground text-xs truncate">{a.question.question}</span>
                   </div>
                   <span className="text-xs text-muted-foreground font-mono ml-2 shrink-0">
-                    {a.question.correct_index !== undefined ? a.question.options[a.question.correct_index] : "—"}
+                    {a.question.correct_index !== undefined ? a.question.options[a.question.correct_index] : "N/A"}
                   </span>
                 </div>
               ))}

@@ -65,8 +65,8 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [client, address]);
 
-  // Build the GenLayer client from whichever wallet Reown/wagmi connected —
-  // the client signs through the real connector's EIP-1193 provider, so writes
+  // Build the GenLayer client from whichever wallet Reown/wagmi connected.
+  // The client signs through the real connector's EIP-1193 provider, so writes
   // actually prompt the wallet and settle on-chain.
   useEffect(() => {
     let cancelled = false;
