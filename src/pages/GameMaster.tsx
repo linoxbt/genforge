@@ -3,177 +3,105 @@ import { Gamepad2, Sword, Shield, Heart, Skull, Sparkles, Send, Wallet } from "l
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
 import { useWallet } from "@/contexts/WalletContext";
-import { supabase } from "@/integrations/supabase/client";
-import WalletModal from "@/components/WalletModal";
+import { readClient, isExecutionSuccess, executionErrorMessage, WAIT_STATUS } from "@/lib/genlayer";
+import { CONTRACTS } from "@/config/contracts";
 
-interface GameMessage {
+interface ChainTurn { role: "player" | "narrator"; text: string; }
+interface ChainSession {
   id: string;
-  type: "narrator" | "player" | "system" | "combat";
-  text: string;
+  player_address: string;
+  hp: number; max_hp: number; attack: number; defense: number; gold: number; level: number; xp: number;
+  status: "playing" | "gameover";
+  choices: string[];
+  turns?: ChainTurn[];
 }
 
-interface PlayerStats {
-  hp: number;
-  maxHp: number;
-  attack: number;
-  defense: number;
-  gold: number;
-  level: number;
-  xp: number;
-}
-
-type GamePhase = "idle" | "playing" | "gameover";
+type GamePhase = "idle" | "starting" | "playing" | "processing" | "gameover";
 
 const GameMaster = () => {
   const [phase, setPhase] = useState<GamePhase>("idle");
-  const [messages, setMessages] = useState<GameMessage[]>([]);
-  const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
-  const [stats, setStats] = useState<PlayerStats>({ hp: 100, maxHp: 100, attack: 10, defense: 5, gold: 0, level: 1, xp: 0 });
-  const [choices, setChoices] = useState<string[]>([]);
+  const [session, setSession] = useState<ChainSession | null>(null);
   const [customAction, setCustomAction] = useState("");
-  const [processing, setProcessing] = useState(false);
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const { isConnected } = useWallet();
+  const { isConnected, client, address, connect } = useWallet();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const addMessage = (type: GameMessage["type"], text: string) => {
-    setMessages((prev) => [...prev, { id: Date.now().toString() + Math.random(), type, text }]);
-  };
-
-  const parseAIResponse = (content: string) => {
-    const jsonMatch = content.match(/```json\s*([\s\S]*?)```/);
-    let statsChange = { hpChange: 0, goldChange: 0, xpGain: 0, outcome: "neutral" };
-    if (jsonMatch) {
-      try { statsChange = JSON.parse(jsonMatch[1]); } catch {}
-    }
-
-    const choicesMatch = content.match(/```choices\s*([\s\S]*?)```/);
-    let newChoices: string[] = [];
-    if (choicesMatch) {
-      try { newChoices = JSON.parse(choicesMatch[1]); } catch {}
-    }
-
-    const narrative = content
-      .replace(/```json[\s\S]*?```/g, "")
-      .replace(/```choices[\s\S]*?```/g, "")
-      .trim();
-
-    return { narrative, statsChange, newChoices };
-  };
-
-  const callAI = async (playerAction: string) => {
-    const newHistory = [...chatHistory, { role: "user", content: playerAction }];
-
-    const { data, error } = await supabase.functions.invoke("ai-game-master", {
-      body: { messages: newHistory, playerStats: stats },
-    });
-
-    if (error || data?.error) {
-      const errMsg = data?.error || error?.message || "AI error";
-      toast({ title: "AI Error", description: errMsg, variant: "destructive" });
-      throw new Error(errMsg);
-    }
-
-    const content = data.content;
-    setChatHistory([...newHistory, { role: "assistant", content }]);
-    return content;
-  };
+  }, [session?.turns]);
 
   const startGame = async () => {
-    if (!isConnected) {
-      setWalletModalOpen(true);
+    if (!isConnected || !client) {
+      connect();
       toast({ title: "Wallet required", description: "Connect your wallet to play the RPG.", variant: "destructive" });
       return;
     }
 
-    setPhase("playing");
-    setMessages([]);
-    setChatHistory([]);
-    setStats({ hp: 100, maxHp: 100, attack: 10, defense: 5, gold: 0, level: 1, xp: 0 });
-    setChoices([]);
-    setProcessing(true);
-
-    addMessage("system", "⚔️ Connecting to AI Game Master...");
+    setPhase("starting");
+    setSession(null);
 
     try {
-      const content = await callAI("Start a new dungeon crawl adventure. Set the scene and give me choices.");
-      const { narrative, newChoices } = parseAIResponse(content);
-      addMessage("narrator", narrative || content);
-      if (newChoices.length > 0) setChoices(newChoices);
-      else setChoices(["Explore ahead", "Search for traps", "Rest and prepare"]);
-    } catch {
-      addMessage("system", "Failed to connect to AI. Using offline mode.");
-      addMessage("narrator", "You awaken in a dimly lit cavern. Water drips from stalactites above. Three tunnels branch ahead.");
-      setChoices(["Enter the glowing tunnel", "Investigate the growling sounds", "Take the silent path"]);
+      const txHash = await client.writeContract({
+        address: CONTRACTS.dungeonMaster,
+        functionName: "start_session",
+        args: [],
+        value: 0n,
+      });
+      const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: WAIT_STATUS, retries: 150, interval: 5000 });
+      if (!isExecutionSuccess(receipt)) throw new Error(executionErrorMessage(receipt));
+
+      const list = await readClient.readContract({ address: CONTRACTS.dungeonMaster, functionName: "list_sessions", args: [] }) as unknown as ChainSession[];
+      const mine = list.find((s) => s.player_address.toLowerCase() === address.toLowerCase());
+      if (!mine) throw new Error("Session not found after creation");
+
+      const full = await readClient.readContract({ address: CONTRACTS.dungeonMaster, functionName: "get_session", args: [BigInt(mine.id)] }) as unknown as ChainSession;
+      setSession(full);
+      setPhase("playing");
+    } catch (e: any) {
+      toast({ title: "Failed to start adventure", description: e.message, variant: "destructive" });
+      setPhase("idle");
     }
-    setProcessing(false);
   };
 
   const processChoice = async (choiceText: string) => {
-    if (processing) return;
-    setProcessing(true);
-    setChoices([]);
-    addMessage("player", choiceText);
-    addMessage("system", "🔮 AI Game Master processing...");
+    if (!session || !client || phase === "processing") return;
+    setPhase("processing");
+    const prevLevel = session.level;
 
     try {
-      const content = await callAI(choiceText);
-      const { narrative, statsChange, newChoices } = parseAIResponse(content);
+      const txHash = await client.writeContract({
+        address: CONTRACTS.dungeonMaster,
+        functionName: "take_turn",
+        args: [BigInt(session.id), choiceText],
+        value: 0n,
+      });
+      const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: WAIT_STATUS, retries: 150, interval: 5000 });
+      if (!isExecutionSuccess(receipt)) throw new Error(executionErrorMessage(receipt));
 
-      const newStats = { ...stats };
-      newStats.hp = Math.max(0, Math.min(newStats.maxHp, newStats.hp + (statsChange.hpChange || 0)));
-      newStats.gold = Math.max(0, newStats.gold + (statsChange.goldChange || 0));
-      newStats.xp += statsChange.xpGain || 0;
-
-      const xpNeeded = newStats.level * 50;
-      if (newStats.xp >= xpNeeded) {
-        newStats.level += 1;
-        newStats.xp -= xpNeeded;
-        newStats.maxHp += 20;
-        newStats.hp = newStats.maxHp;
-        newStats.attack += 3;
-        newStats.defense += 2;
-        addMessage("system", `⚡ LEVEL UP! Now Level ${newStats.level}!`);
+      const full = await readClient.readContract({ address: CONTRACTS.dungeonMaster, functionName: "get_session", args: [BigInt(session.id)] }) as unknown as ChainSession;
+      setSession(full);
+      setPhase(full.status === "gameover" ? "gameover" : "playing");
+      if (full.level > prevLevel) {
+        toast({ title: `⚡ Level up! Now Level ${full.level}`, description: "GEN reward paid on-chain if the rewards pool was funded." });
       }
-
-      if (statsChange.hpChange && statsChange.hpChange < 0) {
-        addMessage("combat", narrative || content);
-      } else {
-        addMessage("narrator", narrative || content);
-      }
-
-      setStats(newStats);
-
-      if (newStats.hp <= 0) {
-        addMessage("system", "💀 YOU HAVE FALLEN.");
-        setPhase("gameover");
-      } else {
-        setChoices(newChoices.length > 0 ? newChoices : ["Continue exploring", "Rest", "Search the area"]);
-      }
-    } catch {
-      addMessage("narrator", "The dungeon shifts around you... (AI unavailable, try again)");
-      setChoices(["Try again", "Explore", "Rest"]);
+    } catch (e: any) {
+      toast({ title: "Turn failed", description: e.message, variant: "destructive" });
+      setPhase("playing");
     }
-
-    setProcessing(false);
   };
 
   const handleCustomAction = () => {
-    if (!customAction.trim() || processing) return;
+    if (!customAction.trim() || phase === "processing") return;
     processChoice(customAction);
     setCustomAction("");
   };
+
+  const turns = session?.turns || [];
 
   return (
     <AppLayout>
@@ -183,7 +111,7 @@ const GameMaster = () => {
             <Gamepad2 className="w-6 h-6 text-primary" />
             Game Master
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">AI-powered text RPG. Real AI narration via Intelligent Contracts.</p>
+          <p className="text-sm text-muted-foreground mt-1">A GenLayer Intelligent Contract narrates your adventure — every scene is a real on-chain AI call.</p>
         </div>
 
         {!isConnected && (
@@ -193,7 +121,7 @@ const GameMaster = () => {
                 <Wallet className="w-5 h-5 text-primary" />
                 <p className="text-sm text-foreground">Connect your wallet to play the RPG.</p>
               </div>
-              <Button size="sm" onClick={() => setWalletModalOpen(true)} className="bg-primary text-primary-foreground text-xs">
+              <Button size="sm" onClick={() => connect()} className="bg-primary text-primary-foreground text-xs">
                 <Wallet className="w-3 h-3 mr-1" /> Connect
               </Button>
             </CardContent>
@@ -204,14 +132,23 @@ const GameMaster = () => {
           <Card className="text-center p-10 border-border">
             <Sword className="w-12 h-12 text-primary mx-auto mb-3" />
             <h2 className="text-2xl font-bold text-foreground mb-2">Enter the Dungeon</h2>
-            <p className="text-muted-foreground text-sm mb-4">Real AI narrates your adventure. Every outcome is unique.</p>
+            <p className="text-muted-foreground text-sm mb-4">Real on-chain AI narrates your adventure. Every outcome is unique.</p>
             <Button onClick={startGame} className="bg-primary text-primary-foreground">
               <Sparkles className="w-4 h-4 mr-2" /> {isConnected ? "Begin Adventure" : "Connect Wallet to Play"}
             </Button>
           </Card>
         )}
 
-        {(phase === "playing" || phase === "gameover") && (
+        {phase === "starting" && (
+          <Card className="border-border">
+            <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="animate-pulse text-primary text-sm font-mono">⚔️ Intelligent Contract is generating your opening scene...</div>
+              <p className="text-xs text-muted-foreground">This is a real on-chain transaction — it can take a little while.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {session && (phase === "playing" || phase === "processing" || phase === "gameover") && (
           <>
             <div className="grid grid-cols-5 gap-2">
               <div className="bg-card border border-border rounded-md p-2">
@@ -219,47 +156,43 @@ const GameMaster = () => {
                   <Heart className="w-3 h-3 text-red-400" />
                   <span className="text-xs text-muted-foreground">HP</span>
                 </div>
-                <Progress value={(stats.hp / stats.maxHp) * 100} className="h-1.5" />
-                <span className="text-xs font-mono text-foreground">{stats.hp}/{stats.maxHp}</span>
+                <Progress value={(session.hp / session.max_hp) * 100} className="h-1.5" />
+                <span className="text-xs font-mono text-foreground">{session.hp}/{session.max_hp}</span>
               </div>
               <div className="bg-card border border-border rounded-md p-2 text-center">
                 <Sword className="w-3 h-3 text-primary mx-auto" />
                 <span className="text-xs text-muted-foreground block">ATK</span>
-                <span className="text-sm font-bold text-foreground">{stats.attack}</span>
+                <span className="text-sm font-bold text-foreground">{session.attack}</span>
               </div>
               <div className="bg-card border border-border rounded-md p-2 text-center">
                 <Shield className="w-3 h-3 text-accent mx-auto" />
                 <span className="text-xs text-muted-foreground block">DEF</span>
-                <span className="text-sm font-bold text-foreground">{stats.defense}</span>
+                <span className="text-sm font-bold text-foreground">{session.defense}</span>
               </div>
               <div className="bg-card border border-border rounded-md p-2 text-center">
                 <span className="text-sm">🪙</span>
                 <span className="text-xs text-muted-foreground block">Gold</span>
-                <span className="text-sm font-bold text-foreground">{stats.gold}</span>
+                <span className="text-sm font-bold text-foreground">{session.gold}</span>
               </div>
               <div className="bg-card border border-border rounded-md p-2 text-center">
                 <Sparkles className="w-3 h-3 text-primary mx-auto" />
-                <span className="text-xs text-muted-foreground block">Lv.{stats.level}</span>
-                <span className="text-xs font-mono text-foreground">{stats.xp}/{stats.level * 50}</span>
+                <span className="text-xs text-muted-foreground block">Lv.{session.level}</span>
+                <span className="text-xs font-mono text-foreground">{session.xp}/{session.level * 50}</span>
               </div>
             </div>
 
             <Card className="border-border">
               <CardContent className="p-4 max-h-[400px] overflow-y-auto space-y-2">
                 <AnimatePresence>
-                  {messages.map((msg) => (
+                  {turns.map((msg, i) => (
                     <motion.div
-                      key={msg.id}
+                      key={i}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       className={`p-3 rounded text-sm ${
-                        msg.type === "narrator"
+                        msg.role === "narrator"
                           ? "bg-secondary/40 border-l-2 border-primary text-foreground"
-                          : msg.type === "player"
-                          ? "bg-primary/5 border-l-2 border-accent text-foreground ml-6"
-                          : msg.type === "combat"
-                          ? "bg-destructive/10 border-l-2 border-destructive text-foreground"
-                          : "bg-muted/50 text-muted-foreground text-center text-xs italic"
+                          : "bg-primary/5 border-l-2 border-accent text-foreground ml-6"
                       }`}
                     >
                       {msg.text}
@@ -270,10 +203,10 @@ const GameMaster = () => {
               </CardContent>
             </Card>
 
-            {choices.length > 0 && !processing && phase === "playing" && (
+            {session.choices.length > 0 && phase === "playing" && (
               <div className="space-y-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {choices.map((choice, i) => (
+                  {session.choices.map((choice, i) => (
                     <Button
                       key={i}
                       variant="outline"
@@ -300,14 +233,15 @@ const GameMaster = () => {
               </div>
             )}
 
-            {processing && (
+            {phase === "processing" && (
               <div className="text-center py-3">
-                <div className="animate-pulse text-primary text-sm font-mono">Processing...</div>
+                <div className="animate-pulse text-primary text-sm font-mono">Intelligent Contract is narrating the outcome on-chain...</div>
               </div>
             )}
 
             {phase === "gameover" && (
-              <div className="text-center">
+              <div className="text-center space-y-2">
+                <p className="text-destructive text-sm font-mono">💀 YOU HAVE FALLEN.</p>
                 <Button onClick={startGame} className="bg-primary text-primary-foreground">
                   <Skull className="w-4 h-4 mr-2" /> Try Again
                 </Button>
@@ -317,7 +251,6 @@ const GameMaster = () => {
         )}
       </div>
 
-      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </AppLayout>
   );
 };

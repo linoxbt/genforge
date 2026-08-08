@@ -1,52 +1,100 @@
 import { motion } from "framer-motion";
 import {
   Trophy, Brain, Gamepad2, Dice5, ArrowRight,
-  Code2, GitBranch, Cpu, Wallet
+  Code2, Cpu, Wallet, ShieldCheck, Eye, Lock,
+  Sparkles, Boxes, Vote, Github, Twitter, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { useWallet } from "@/contexts/WalletContext";
-import { useState } from "react";
 import genForgeLogo from "@/assets/genforge-logo.png";
-import WalletModal from "@/components/WalletModal";
+import { CONTRACTS } from "@/config/contracts";
 
 const products = [
   {
     icon: Trophy,
     title: "Bounty Review",
-    description: "Post bounties with on-chain escrow. AI evaluates submissions and triggers payouts automatically.",
-    tags: ["Bounties", "On-Chain"],
+    description: "Post bounties with real on-chain escrow. An Intelligent Contract scores submissions and pays out automatically.",
+    tags: ["Bounties", "Escrow"],
     path: "/bounties",
   },
   {
     icon: Brain,
     title: "Trivia Games",
-    description: "AI generates unique questions live and verifies answers from real sources in real-time.",
+    description: "Questions and answer keys are generated live by validator consensus. Correct answers pay real GEN.",
     tags: ["Gaming", "AI"],
     path: "/trivia",
   },
   {
     icon: Gamepad2,
     title: "Game Master",
-    description: "Text-based RPG with real AI narration. Every choice and outcome is AI-generated live.",
+    description: "Text-based RPG narrated turn-by-turn by an on-chain LLM call. Every outcome is consensus-verified.",
     tags: ["RPG", "AI"],
     path: "/rpg",
   },
   {
     icon: Dice5,
     title: "P2P Betting",
-    description: "Create bets confirmed on-chain. AI resolves outcomes from live data with consensus.",
+    description: "Prediction markets with real wagered GEN. Outcomes are resolved by AI reasoning and validator agreement.",
     tags: ["Betting", "On-Chain"],
     path: "/betting",
   },
   {
     icon: Code2,
     title: "Deploy Contracts",
-    description: "Write Python Intelligent Contracts and deploy them directly to GenLayer Asimov Testnet.",
+    description: "Write Python Intelligent Contracts in the browser and deploy them straight to GenLayer Asimov Testnet.",
     tags: ["Deploy", "Python"],
     path: "/deploy",
   },
+];
+
+const valueProps = [
+  {
+    icon: Lock,
+    title: "Real escrow, not a database row",
+    description: "Bounty rewards and bets are sent as transaction value and held in the Intelligent Contract's own on-chain balance — never tracked off-chain.",
+  },
+  {
+    icon: Vote,
+    title: "Consensus-verified AI",
+    description: "Every AI decision — a score, a resolved bet, a narrated scene — runs through GenLayer's Optimistic Democracy, where independent validators must agree before it settles.",
+  },
+  {
+    icon: Eye,
+    title: "Transparent by design",
+    description: "Contract state, logic, and history are all publicly verifiable on-chain. Nothing happens in a server you can't see.",
+  },
+];
+
+const steps = [
+  {
+    icon: Wallet,
+    title: "Connect a wallet",
+    description: "Link any EVM-compatible wallet via Reown. Nothing is generated or stored for you — you're always in control of your keys.",
+  },
+  {
+    icon: Boxes,
+    title: "Interact with an Intelligent Contract",
+    description: "Post a bounty, place a bet, ask a question, take a turn — each action is a real transaction sent to a Python contract on GenLayer.",
+  },
+  {
+    icon: Sparkles,
+    title: "Validators reach consensus",
+    description: "The contract calls an LLM directly. Multiple validators independently verify the result before it's accepted on-chain.",
+  },
+  {
+    icon: Cpu,
+    title: "Settlement happens atomically",
+    description: "Payouts, scores, and state updates are written in the same transaction — no separate off-chain step, nothing to trust but the chain.",
+  },
+];
+
+const stats = [
+  { label: "Intelligent Contracts", value: "4" },
+  { label: "Network", value: "Asimov Testnet" },
+  { label: "Consensus", value: "Optimistic Democracy" },
+  { label: "Escrow model", value: "Fully on-chain" },
 ];
 
 const container = {
@@ -60,13 +108,12 @@ const item = {
 };
 
 const Index = () => {
-  const { balance, isConnected, address } = useWallet();
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const { balance, isConnected, address, connect } = useWallet();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Header */}
-      <header className="border-b border-border">
+      <header className="border-b border-border sticky top-0 z-20 bg-background/90 backdrop-blur">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={genForgeLogo} alt="GenForge" className="w-7 h-7 rounded" />
@@ -75,61 +122,73 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-4">
             {isConnected ? (
-              <>
-                <span className="text-sm font-mono text-muted-foreground">{balance.toFixed(4)} GEN</span>
-                <span className="text-xs font-mono text-muted-foreground truncate max-w-[120px]">{address}</span>
-              </>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="font-mono text-foreground font-semibold">{balance.toFixed(4)} GEN</span>
+                <span className="text-xs font-mono text-muted-foreground truncate max-w-[120px] hidden sm:inline">{address}</span>
+              </div>
             ) : (
-              <Button variant="default" size="sm" className="font-mono text-xs" onClick={() => setWalletModalOpen(true)}>
+              <Button variant="default" size="sm" className="font-mono text-xs" onClick={connect}>
                 <Wallet className="w-3.5 h-3.5 mr-1.5" />
                 Connect Wallet
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="font-mono text-xs"
-              onClick={() => window.open("https://docs.genlayer.com", "_blank")}
-            >
-              Docs
-            </Button>
           </div>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="py-20 px-6">
+      <section className="relative py-24 px-6 overflow-hidden">
+        <div
+          className="absolute inset-0 -z-10 opacity-40"
+          style={{
+            backgroundImage: "radial-gradient(circle at 20% 20%, hsl(var(--primary) / 0.15), transparent 45%), radial-gradient(circle at 80% 0%, hsl(var(--accent) / 0.12), transparent 40%)",
+          }}
+        />
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="flex items-center gap-2 mb-4">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+            <div className="flex items-center gap-2 mb-5">
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-sm font-mono text-primary">Live on Asimov Testnet</span>
+              <span className="text-sm font-mono text-primary">Live on GenLayer Asimov Testnet</span>
             </div>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground leading-tight">
-              Build & Play on the
+              Build & play on the
               <br />
-              <span className="text-primary text-glow">GenLayer Blockchain</span>
+              <span className="text-primary text-glow">GenLayer blockchain</span>
             </h1>
             <p className="text-lg text-muted-foreground mt-6 max-w-2xl leading-relaxed">
-              Five production-ready tools powered by Intelligent Contracts — deploy contracts,
-              play AI games, create bounties, and bet P2P — all on-chain.
+              Five tools, one real architecture: Python Intelligent Contracts that hold escrow,
+              call LLMs directly, and settle on-chain only once validators reach consensus.
+              No fake transactions, no off-chain database standing in for a blockchain.
             </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              {isConnected ? (
+                <Button asChild size="lg" className="font-mono glow-green">
+                  <Link to="/bounties">
+                    Launch App <ArrowRight className="w-4 h-4 ml-1.5" />
+                  </Link>
+                </Button>
+              ) : (
+                <Button size="lg" className="font-mono glow-green" onClick={connect}>
+                  <Wallet className="w-4 h-4 mr-1.5" /> Connect Wallet
+                </Button>
+              )}
+              <Button asChild variant="outline" size="lg" className="font-mono">
+                <Link to="/docs">Read the Docs</Link>
+              </Button>
+            </div>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="mt-8 flex flex-wrap gap-6 text-sm text-muted-foreground font-mono"
+            className="mt-10 flex flex-wrap gap-6 text-sm text-muted-foreground font-mono"
           >
             {[
-              { icon: Cpu, text: "LLM Consensus" },
+              { icon: Vote, text: "LLM Consensus" },
               { icon: Code2, text: "Python Contracts" },
-              { icon: GitBranch, text: "Web Browsing" },
+              { icon: ShieldCheck, text: "On-Chain Escrow" },
             ].map((f) => (
               <div key={f.text} className="flex items-center gap-2">
                 <f.icon className="w-4 h-4 text-primary" />
@@ -140,23 +199,71 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Tools Grid */}
-      <section className="px-6 pb-20">
+      {/* Stats bar */}
+      <section className="border-y border-border bg-card/30">
+        <div className="max-w-6xl mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-6">
+          {stats.map((s) => (
+            <div key={s.label}>
+              <p className="text-lg md:text-xl font-bold font-mono text-foreground">{s.value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="px-6 py-20">
         <div className="max-w-6xl mx-auto">
+          <div className="max-w-2xl mb-10">
+            <span className="text-xs font-mono text-primary uppercase tracking-wide">How it works</span>
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground mt-2">From click to consensus</h2>
+            <p className="text-muted-foreground mt-3 leading-relaxed">
+              Every tool in GenForge follows the same real on-chain path — nothing is simulated client-side.
+            </p>
+          </div>
           <motion.div
             variants={container}
             initial="hidden"
-            animate="show"
+            whileInView="show"
+            viewport={{ once: true, margin: "-80px" }}
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
+          >
+            {steps.map((s, i) => (
+              <motion.div key={s.title} variants={item} className="relative rounded-lg border border-border bg-card p-5">
+                <span className="text-xs font-mono text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
+                <s.icon className="w-5 h-5 text-primary mt-3 mb-3" />
+                <h3 className="font-semibold text-foreground text-sm mb-1.5">{s.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{s.description}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Tools Grid */}
+      <section className="px-6 pb-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-2xl mb-10">
+            <span className="text-xs font-mono text-primary uppercase tracking-wide">The tools</span>
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground mt-2">Five Intelligent Contracts, one app</h2>
+          </div>
+          <motion.div
+            variants={container}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-80px" }}
             className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
           >
             {products.map((product) => (
               <motion.div key={product.title} variants={item}>
                 <Link
                   to={product.path}
-                  className="group block rounded-lg bg-card border border-border p-5 hover:border-primary/40 transition-all duration-300"
+                  className="group block h-full rounded-lg bg-card border border-border p-5 hover:border-primary/40 transition-all duration-300"
                 >
                   <div className="flex items-center gap-3 mb-3">
-                    <product.icon className="w-5 h-5 text-primary" />
+                    <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                      <product.icon className="w-4.5 h-4.5 text-primary" />
+                    </div>
                     <h3 className="font-semibold text-foreground text-sm">{product.title}</h3>
                   </div>
                   <p className="text-muted-foreground text-sm leading-relaxed mb-4">
@@ -170,7 +277,7 @@ const Index = () => {
                         </span>
                       ))}
                     </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                   </div>
                 </Link>
               </motion.div>
@@ -179,25 +286,75 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Value props */}
+      <section className="px-6 pb-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="max-w-2xl mb-10">
+            <span className="text-xs font-mono text-primary uppercase tracking-wide">Why it's different</span>
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground mt-2">Actually on-chain, not on-chain-ish</h2>
+            <p className="text-muted-foreground mt-3 leading-relaxed">
+              A lot of "AI x crypto" apps use the blockchain as a coat of paint. GenForge's AI decisions run
+              inside Intelligent Contracts and settle through real validator consensus.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            {valueProps.map((v) => (
+              <div key={v.title} className="rounded-lg border border-border bg-card p-5 gradient-border">
+                <v.icon className="w-5 h-5 text-primary mb-3" />
+                <h3 className="font-semibold text-foreground text-sm mb-1.5">{v.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{v.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA banner */}
+      <section className="px-6 pb-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 px-8 py-12 text-center">
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground">Ready to build?</h2>
+            <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
+              Connect a wallet, grab testnet GEN from the faucet in Settings, and try any of the five tools —
+              or write your own Intelligent Contract and deploy it in minutes.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3 justify-center">
+              {!isConnected && (
+                <Button size="lg" className="font-mono glow-green" onClick={connect}>
+                  <Wallet className="w-4 h-4 mr-1.5" /> Connect Wallet
+                </Button>
+              )}
+              <Button asChild variant="outline" size="lg" className="font-mono">
+                <Link to="/deploy">
+                  <Code2 className="w-4 h-4 mr-1.5" /> Deploy a Contract
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
-      <footer className="border-t border-border py-6 px-6">
-        <div className="max-w-6xl mx-auto flex items-center justify-between text-sm text-muted-foreground">
+      <footer className="border-t border-border py-8 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2 font-mono">
             <img src={genForgeLogo} alt="GenForge" className="w-4 h-4 rounded" />
             <span>GenForge</span>
+            <span className="text-xs text-muted-foreground/60">· Bounty Board {CONTRACTS.bountyBoard.slice(0, 6)}…</span>
           </div>
-          <a
-            href="https://x.com/linoxbt"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-primary transition-colors font-mono"
-          >
-            Made by Lino
-          </a>
+          <div className="flex items-center gap-4 font-mono text-xs">
+            <a href="https://docs.genlayer.com" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1">
+              GenLayer Docs <ExternalLink className="w-3 h-3" />
+            </a>
+            <a href="https://github.com/linoxbt/genforge" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1">
+              <Github className="w-3.5 h-3.5" /> GitHub
+            </a>
+            <a href="https://x.com/linoxbt" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors flex items-center gap-1">
+              <Twitter className="w-3.5 h-3.5" /> Made by Lino
+            </a>
+          </div>
         </div>
       </footer>
-
-      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </div>
   );
 };

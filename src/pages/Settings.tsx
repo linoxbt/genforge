@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Settings as SettingsIcon, Key, Eye, EyeOff, Copy, Check, Wallet, Shield, ExternalLink, Droplets, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, Copy, Check, Wallet, ExternalLink, Droplets, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
 import { useWallet } from "@/contexts/WalletContext";
-import WalletModal from "@/components/WalletModal";
 
 const FaucetButton = ({ address }: { address: string }) => {
   const [loading, setLoading] = useState(false);
@@ -58,10 +57,8 @@ const FaucetButton = ({ address }: { address: string }) => {
 };
 
 const Settings = () => {
-  const { address, balance, isConnected, connectionMode, privateKey, disconnect, transactions } = useWallet();
-  const [showPK, setShowPK] = useState(false);
+  const { address, balance, isConnected, connect, disconnect, transactions } = useWallet();
   const [copied, setCopied] = useState<string | null>(null);
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const { toast } = useToast();
 
   const copyText = (text: string, label: string) => {
@@ -103,9 +100,7 @@ const Settings = () => {
                   </div>
                   <div className="bg-secondary/30 rounded-lg p-3">
                     <p className="text-xs text-muted-foreground font-mono mb-1">Connection</p>
-                    <Badge variant="outline" className="text-xs">
-                      {connectionMode === "generated" ? "Generated Wallet" : "Browser Wallet"}
-                    </Badge>
+                    <Badge variant="outline" className="text-xs">Browser Wallet</Badge>
                   </div>
                 </div>
 
@@ -119,35 +114,6 @@ const Settings = () => {
                   </div>
                 </div>
 
-                {connectionMode === "generated" && privateKey && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-destructive" />
-                      <span className="text-sm font-medium text-foreground">Private Key</span>
-                    </div>
-                    <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3">
-                      <p className="text-[10px] text-destructive mb-2">⚠ Never share your private key. Anyone with this key has full control of your wallet.</p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setShowPK(!showPK)}
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors font-mono"
-                        >
-                          {showPK ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          {showPK ? "Hide" : "Reveal"}
-                        </button>
-                        {showPK && (
-                          <button onClick={() => copyText(privateKey, "Private Key")}>
-                            {copied === "Private Key" ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />}
-                          </button>
-                        )}
-                      </div>
-                      {showPK && (
-                        <p className="text-[10px] font-mono text-destructive break-all mt-2 bg-destructive/10 rounded p-2">{privateKey}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 <FaucetButton address={address} />
 
                 <Button variant="destructive" size="sm" onClick={disconnect} className="text-xs">
@@ -155,7 +121,7 @@ const Settings = () => {
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setWalletModalOpen(true)} className="bg-primary text-primary-foreground">
+              <Button onClick={connect} className="bg-primary text-primary-foreground">
                 <Wallet className="w-4 h-4 mr-2" /> Connect Wallet
               </Button>
             )}
@@ -216,8 +182,6 @@ const Settings = () => {
           </CardContent>
         </Card>
       </div>
-
-      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </AppLayout>
   );
 };

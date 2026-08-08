@@ -9,22 +9,23 @@ import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
 import { useWallet } from "@/contexts/WalletContext";
-import { supabase } from "@/integrations/supabase/client";
+import { WAIT_STATUS, isExecutionSuccess, executionErrorMessage } from "@/lib/genlayer";
 
-const SAMPLE_CONTRACT = `# GenLayer Intelligent Contract
+const SAMPLE_CONTRACT = `# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
+
 from genlayer import *
 
-class HelloWorld(Contract):
+class HelloWorld(gl.Contract):
     greeting: str
 
     def __init__(self, initial_greeting: str):
         self.greeting = initial_greeting
 
-    @callable
+    @gl.public.view
     def get_greeting(self) -> str:
         return self.greeting
 
-    @callable
+    @gl.public.write
     def set_greeting(self, new_greeting: str) -> None:
         self.greeting = new_greeting
 `;
@@ -35,10 +36,25 @@ interface DeployedContract {
   name: string;
   code: string;
   created_at: string;
-  status: string;
+  status: "deploying" | "deployed" | "failed";
   tx_hash: string | null;
   deployer_address: string;
 }
+
+const STORAGE_KEY = "genforge_deployed_contracts";
+
+const loadDeployedContracts = (): DeployedContract[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveDeployedContracts = (contracts: DeployedContract[]) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(contracts));
+};
 
 const ContractDeploy = () => {
   const [code, setCode] = useState(SAMPLE_CONTRACT);
@@ -47,20 +63,10 @@ const ContractDeploy = () => {
   const [deploying, setDeploying] = useState(false);
   const [deployedContracts, setDeployedContracts] = useState<DeployedContract[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { isConnected, client, address, addTransaction } = useWallet();
+  const { isConnected, client, address } = useWallet();
 
-  const fetchContracts = async () => {
-    const { data } = await supabase
-      .from("deployed_contracts")
-      .select("*")
-      .order("created_at", { ascending: false });
-    setDeployedContracts(data || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchContracts(); }, []);
+  useEffect(() => { setDeployedContracts(loadDeployedContracts()); }, []);
 
   const copyAddress = (addr: string) => {
     navigator.clipboard.writeText(addr);
@@ -77,45 +83,46 @@ const ContractDeploy = () => {
 
     setDeploying(true);
 
-    // Insert pending record
-    const { data: inserted, error: insertError } = await supabase.from("deployed_contracts").insert({
+    const pendingEntry: DeployedContract = {
+      id: crypto.randomUUID(),
       deployer_address: address,
       name: contractName,
       code,
+      contract_address: null,
+      tx_hash: null,
       status: "deploying",
-    }).select().single();
-
-    if (insertError || !inserted) {
-      toast({ title: "Failed to save contract", variant: "destructive" });
-      setDeploying(false);
-      return;
-    }
+      created_at: new Date().toISOString(),
+    };
+    let contracts = [pendingEntry, ...loadDeployedContracts()];
+    saveDeployedContracts(contracts);
+    setDeployedContracts(contracts);
 
     try {
       let args: any[] = [];
       try { args = JSON.parse(constructorArgs); } catch { args = [constructorArgs]; }
 
-      const result: any = await client.deployContract({ code, args });
+      const txHash = await client.deployContract({ code, args });
+      const receipt: any = await client.waitForTransactionReceipt({ hash: txHash as any, status: WAIT_STATUS, retries: 90, interval: 5000 });
+      if (!isExecutionSuccess(receipt)) throw new Error(executionErrorMessage(receipt));
 
-      const contractAddr = result?.contractAddress || result?.result?.contractAddress || null;
-      const txHash = result?.transactionHash || undefined;
+      const contractAddr = receipt?.txDataDecoded?.contractAddress ? String(receipt.txDataDecoded.contractAddress) : null;
 
-      await supabase.from("deployed_contracts").update({
-        contract_address: contractAddr ? String(contractAddr) : null,
-        status: "deployed",
-        tx_hash: txHash,
-      }).eq("id", inserted.id);
+      contracts = loadDeployedContracts().map((c) =>
+        c.id === pendingEntry.id ? { ...c, status: "deployed" as const, contract_address: contractAddr, tx_hash: String(txHash) } : c
+      );
+      saveDeployedContracts(contracts);
+      setDeployedContracts(contracts);
 
-      addTransaction({ type: "deploy", amount: 0, description: `Deployed ${contractName}`, hash: txHash });
-      toast({ title: "Contract deployed!", description: contractAddr ? `Address: ${String(contractAddr).slice(0, 10)}...` : "Deployed successfully" });
+      toast({ title: "Contract deployed!", description: contractAddr ? `Address: ${contractAddr.slice(0, 10)}...` : "Deployed successfully" });
     } catch (e) {
       console.error("Deploy failed:", e);
-      await supabase.from("deployed_contracts").update({ status: "failed" }).eq("id", inserted.id);
+      contracts = loadDeployedContracts().map((c) => (c.id === pendingEntry.id ? { ...c, status: "failed" as const } : c));
+      saveDeployedContracts(contracts);
+      setDeployedContracts(contracts);
       toast({ title: "Deployment failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     }
 
     setDeploying(false);
-    fetchContracts();
   };
 
   return (
@@ -150,9 +157,8 @@ const ContractDeploy = () => {
 
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-foreground">Deployed Contracts</h3>
-            {loading ? (
-              <div className="text-center py-12"><Loader2 className="w-6 h-6 text-primary animate-spin mx-auto" /></div>
-            ) : deployedContracts.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground -mt-2">Stored locally in this browser only.</p>
+            {deployedContracts.length === 0 ? (
               <Card className="border-border">
                 <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <Code2 className="w-8 h-8 mb-2 opacity-30" />

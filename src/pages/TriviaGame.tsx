@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Brain, Play, Trophy, Clock, CheckCircle2, XCircle, RotateCcw, Zap, Loader2, Wallet } from "lucide-react";
+import { Brain, Play, Trophy, Clock, CheckCircle2, XCircle, RotateCcw, Zap, Loader2, Wallet, Sparkles } from "lucide-react";
+import { formatEther } from "viem";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,103 +9,114 @@ import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
 import { useWallet } from "@/contexts/WalletContext";
-import { supabase } from "@/integrations/supabase/client";
-import WalletModal from "@/components/WalletModal";
+import { readClient, isExecutionSuccess, executionErrorMessage, WAIT_STATUS } from "@/lib/genlayer";
+import { CONTRACTS } from "@/config/contracts";
 
-interface Question {
+interface ChainQuestion {
+  id: string;
+  category: string;
   question: string;
   options: string[];
-  correctIndex: number;
-  source: string;
-  category: string;
+  asker_address: string;
+  answered: boolean;
+  correct_index?: number;
+  source?: string;
   explanation?: string;
+  answerer_address?: string;
+  selected_index?: number;
+  correct?: boolean;
+  reward_paid?: string;
 }
 
-type GameState = "menu" | "loading" | "playing" | "results";
+interface AnsweredRecord {
+  question: ChainQuestion;
+  selected: number | null;
+  correct: boolean;
+  rewardPaid: bigint;
+}
+
+type GameState = "menu" | "generating" | "playing" | "submitting" | "results";
 
 const CATEGORIES = ["all", "GenLayer", "Blockchain", "Crypto", "Science", "History", "Geography", "Technology", "Sports", "Music"];
 
 const TriviaGame = () => {
   const [gameState, setGameState] = useState<GameState>("menu");
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentQuestion, setCurrentQuestion] = useState<ChainQuestion | null>(null);
+  const [questionsAnswered, setQuestionsAnswered] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [answered, setAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [timer, setTimer] = useState(20);
-  const [answers, setAnswers] = useState<{ question: Question; selected: number | null; correct: boolean }[]>([]);
+  const [answers, setAnswers] = useState<AnsweredRecord[]>([]);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [questionCount, setQuestionCount] = useState(5);
-  const [verifying, setVerifying] = useState(false);
-  const [aiExplanation, setAiExplanation] = useState("");
-  const [aiSource, setAiSource] = useState("");
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const { toast } = useToast();
-  const { isConnected, reward } = useWallet();
+  const { isConnected, client, connect } = useWallet();
+
+  const generateQuestion = async (): Promise<ChainQuestion | null> => {
+    if (!client) return null;
+    try {
+      const txHash = await client.writeContract({
+        address: CONTRACTS.triviaRewards,
+        functionName: "generate_question",
+        args: [selectedCategory],
+        value: 0n,
+      });
+      const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: WAIT_STATUS, retries: 150, interval: 5000 });
+      if (!isExecutionSuccess(receipt)) throw new Error(executionErrorMessage(receipt));
+
+      const list = await readClient.readContract({ address: CONTRACTS.triviaRewards, functionName: "list_questions", args: [] });
+      const newest = (list as unknown as ChainQuestion[])[0];
+      return newest || null;
+    } catch (e: any) {
+      toast({ title: "Failed to generate question", description: e.message, variant: "destructive" });
+      return null;
+    }
+  };
 
   const startGame = async () => {
     if (!isConnected) {
-      setWalletModalOpen(true);
+      connect();
       toast({ title: "Wallet required", description: "Connect your wallet to play and earn GEN rewards.", variant: "destructive" });
       return;
     }
 
-    setGameState("loading");
+    setScore(0);
+    setAnswers([]);
+    setStreak(0);
+    setBestStreak(0);
+    setQuestionsAnswered(0);
+    setGameState("generating");
 
-    try {
-      const { data, error } = await supabase.functions.invoke("ai-trivia-generate", {
-        body: { category: selectedCategory, count: questionCount },
-      });
+    const q = await generateQuestion();
+    if (!q) { setGameState("menu"); return; }
 
-      if (error || data?.error) throw new Error(data?.error || error?.message);
-      if (!data.questions?.length) throw new Error("No questions generated");
-
-      setQuestions(data.questions);
-      setCurrentIndex(0);
-      setScore(0);
-      setAnswers([]);
-      setStreak(0);
-      setBestStreak(0);
-      setSelectedAnswer(null);
-      setAnswered(false);
-      setTimer(20);
-      setAiExplanation("");
-      setAiSource("");
-      setGameState("playing");
-    } catch (e) {
-      toast({ title: "Failed to generate questions", description: e instanceof Error ? e.message : "Try again", variant: "destructive" });
-      setGameState("menu");
-    }
+    setCurrentQuestion(q);
+    setSelectedAnswer(null);
+    setTimer(20);
+    setGameState("playing");
   };
 
   const selectAnswer = async (index: number) => {
-    if (answered) return;
+    if (!currentQuestion || !client || gameState !== "playing") return;
     setSelectedAnswer(index);
-    setAnswered(true);
-    setVerifying(true);
-    setAiExplanation("");
-    setAiSource("");
-
-    const q = questions[currentIndex];
+    setGameState("submitting");
 
     try {
-      const { data, error } = await supabase.functions.invoke("ai-trivia-verify", {
-        body: { question: q.question, selectedAnswer: q.options[index], allOptions: q.options },
+      const txHash = await client.writeContract({
+        address: CONTRACTS.triviaRewards,
+        functionName: "submit_answer",
+        args: [BigInt(currentQuestion.id), index],
+        value: 0n,
       });
+      const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: WAIT_STATUS, retries: 90, interval: 5000 });
+      if (!isExecutionSuccess(receipt)) throw new Error(executionErrorMessage(receipt));
 
-      if (error || data?.error) throw new Error(data?.error || error?.message);
+      const answered = await readClient.readContract({ address: CONTRACTS.triviaRewards, functionName: "get_question", args: [BigInt(currentQuestion.id)] }) as unknown as ChainQuestion;
+      const rewardPaid = BigInt(answered.reward_paid || "0");
 
-      const aiCorrectIndex = data.correctIndex;
-      const correct = index === aiCorrectIndex;
-
-      setAiExplanation(data.explanation || q.explanation || "");
-      setAiSource(data.source || q.source);
-
-      questions[currentIndex] = { ...q, correctIndex: aiCorrectIndex };
-
-      if (correct) {
+      if (answered.correct) {
         const points = 100 + timer * 10;
         setScore((s) => s + points);
         setStreak((s) => { const next = s + 1; setBestStreak((b) => Math.max(b, next)); return next; });
@@ -112,57 +124,49 @@ const TriviaGame = () => {
         setStreak(0);
       }
 
-      setAnswers((prev) => [...prev, { question: { ...q, correctIndex: aiCorrectIndex }, selected: index, correct }]);
-    } catch {
-      const correct = index === q.correctIndex;
-      if (correct) {
-        setScore((s) => s + (100 + timer * 10));
-        setStreak((s) => { const next = s + 1; setBestStreak((b) => Math.max(b, next)); return next; });
-      } else {
-        setStreak(0);
-      }
-      setAiExplanation(q.explanation || "");
-      setAiSource(q.source);
-      setAnswers((prev) => [...prev, { question: q, selected: index, correct }]);
-      toast({ title: "AI verification unavailable", description: "Using generated answer key.", variant: "destructive" });
+      setCurrentQuestion(answered);
+      setAnswers((prev) => [...prev, { question: answered, selected: index, correct: !!answered.correct, rewardPaid }]);
+    } catch (e: any) {
+      toast({ title: "Failed to submit answer", description: e.message, variant: "destructive" });
     }
-
-    setVerifying(false);
+    setGameState("playing"); // back to "playing" so the answered-state UI (revealed answer) renders
   };
 
   const timeUp = useCallback(() => {
-    if (!answered) {
-      setAnswered(true);
-      setStreak(0);
-      setAnswers((prev) => [...prev, { question: questions[currentIndex], selected: null, correct: false }]);
-    }
-  }, [answered, currentIndex, questions]);
+    if (!currentQuestion || currentQuestion.answered) return;
+    setStreak(0);
+    setAnswers((prev) => [...prev, { question: currentQuestion, selected: null, correct: false, rewardPaid: 0n }]);
+    setCurrentQuestion((q) => (q ? { ...q, answered: true } : q));
+  }, [currentQuestion]);
 
-  const nextQuestion = () => {
-    if (currentIndex + 1 >= questions.length) {
-      const correctCount = answers.filter((a) => a.correct).length;
-      if (correctCount > 0) {
-        reward(correctCount * 0.01, `Trivia: ${correctCount}/${answers.length} correct`);
-      }
+  const nextQuestion = async () => {
+    const answeredCount = questionsAnswered + 1;
+    setQuestionsAnswered(answeredCount);
+
+    if (answeredCount >= questionCount) {
       setGameState("results");
-    } else {
-      setCurrentIndex((i) => i + 1);
-      setSelectedAnswer(null);
-      setAnswered(false);
-      setTimer(20);
-      setAiExplanation("");
-      setAiSource("");
+      return;
     }
+
+    setGameState("generating");
+    const q = await generateQuestion();
+    if (!q) { setGameState("results"); return; }
+
+    setCurrentQuestion(q);
+    setSelectedAnswer(null);
+    setTimer(20);
+    setGameState("playing");
   };
 
   useEffect(() => {
-    if (gameState !== "playing" || answered) return;
+    if (gameState !== "playing" || !currentQuestion || currentQuestion.answered) return;
     if (timer <= 0) { timeUp(); return; }
     const t = setTimeout(() => setTimer((v) => v - 1), 1000);
     return () => clearTimeout(t);
-  }, [timer, gameState, answered, timeUp]);
+  }, [timer, gameState, currentQuestion, timeUp]);
 
-  const currentQ = questions[currentIndex];
+  const totalRewardEarned = answers.reduce((sum, a) => sum + a.rewardPaid, 0n);
+  const answered = !!currentQuestion?.answered;
 
   return (
     <AppLayout>
@@ -172,7 +176,7 @@ const TriviaGame = () => {
             <Brain className="w-6 h-6 text-primary" />
             Trivia Games
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Every question is AI-generated live. Answers verified in real-time. Earn GEN for correct answers.</p>
+          <p className="text-sm text-muted-foreground mt-1">Every question is generated live by a GenLayer Intelligent Contract. Correct answers pay real GEN on-chain.</p>
         </div>
 
         {!isConnected && (
@@ -182,7 +186,7 @@ const TriviaGame = () => {
                 <Wallet className="w-5 h-5 text-primary" />
                 <p className="text-sm text-foreground">Connect your wallet to play trivia and earn GEN rewards.</p>
               </div>
-              <Button size="sm" onClick={() => setWalletModalOpen(true)} className="bg-primary text-primary-foreground text-xs">
+              <Button size="sm" onClick={() => connect()} className="bg-primary text-primary-foreground text-xs">
                 <Wallet className="w-3 h-3 mr-1" /> Connect
               </Button>
             </CardContent>
@@ -207,11 +211,12 @@ const TriviaGame = () => {
               <div>
                 <label className="text-sm font-medium text-foreground block mb-2">Number of Questions</label>
                 <div className="flex gap-2">
-                  {[5, 8, 10, 15].map((n) => (
+                  {[3, 5, 8].map((n) => (
                     <Button key={n} variant={questionCount === n ? "default" : "outline"} size="sm" onClick={() => setQuestionCount(n)}
                       className={questionCount === n ? "bg-primary text-primary-foreground" : ""}>{n}</Button>
                   ))}
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">Each question is generated as a real on-chain transaction — fewer questions means less waiting.</p>
               </div>
               <Button onClick={startGame} className="bg-primary text-primary-foreground w-full">
                 <Play className="w-4 h-4 mr-2" /> {isConnected ? "Generate & Start" : "Connect Wallet to Play"}
@@ -220,42 +225,44 @@ const TriviaGame = () => {
           </Card>
         )}
 
-        {gameState === "loading" && (
+        {gameState === "generating" && (
           <Card className="border-border">
             <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-sm text-muted-foreground font-mono">AI is generating {questionCount} unique questions...</p>
-              <p className="text-xs text-muted-foreground">Questions are sourced from verified facts</p>
+              <p className="text-sm text-muted-foreground font-mono">Intelligent Contract is generating a question via validator consensus...</p>
+              <p className="text-xs text-muted-foreground">This is a real on-chain transaction — it can take a little while.</p>
             </CardContent>
           </Card>
         )}
 
-        {gameState === "playing" && currentQ && (
+        {(gameState === "playing" || gameState === "submitting") && currentQuestion && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Badge className="bg-secondary text-secondary-foreground font-mono">{currentIndex + 1}/{questions.length}</Badge>
-                <Badge variant="outline" className="text-xs font-mono">{currentQ.category}</Badge>
+                <Badge className="bg-secondary text-secondary-foreground font-mono">{questionsAnswered + 1}/{questionCount}</Badge>
+                <Badge variant="outline" className="text-xs font-mono">{currentQuestion.category}</Badge>
                 {streak > 1 && <Badge className="bg-primary/20 text-primary"><Zap className="w-3 h-3 mr-1" />{streak}x streak</Badge>}
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm font-bold text-foreground font-mono">{score} pts</span>
-                <span className={`font-mono text-sm font-bold ${timer <= 5 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  <Clock className="w-3 h-3 inline mr-1" />{timer}s
-                </span>
+                {!answered && (
+                  <span className={`font-mono text-sm font-bold ${timer <= 5 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                    <Clock className="w-3 h-3 inline mr-1" />{timer}s
+                  </span>
+                )}
               </div>
             </div>
 
-            <Progress value={((currentIndex) / questions.length) * 100} className="h-1" />
+            <Progress value={(questionsAnswered / questionCount) * 100} className="h-1" />
 
             <Card className="border-border">
               <CardContent className="pt-6">
-                <h2 className="text-xl font-bold text-foreground mb-5">{currentQ.question}</h2>
+                <h2 className="text-xl font-bold text-foreground mb-5">{currentQuestion.question}</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {currentQ.options.map((option, i) => {
+                  {currentQuestion.options.map((option, i) => {
                     const isSelected = selectedAnswer === i;
-                    const isCorrect = i === currentQ.correctIndex;
+                    const isCorrect = answered && i === currentQuestion.correct_index;
                     let cls = "p-3 rounded border text-left text-sm transition-all cursor-pointer ";
                     if (answered) {
                       if (isCorrect) cls += "border-primary bg-primary/10 text-primary";
@@ -265,36 +272,39 @@ const TriviaGame = () => {
                       cls += "border-border hover:border-primary/40 text-foreground";
                     }
                     return (
-                      <motion.button key={i} whileHover={!answered ? { scale: 1.01 } : {}} onClick={() => selectAnswer(i)} disabled={answered} className={cls}>
+                      <motion.button key={i} whileHover={!answered ? { scale: 1.01 } : {}} onClick={() => selectAnswer(i)} disabled={answered || gameState === "submitting"} className={cls}>
                         <span className="font-mono text-xs text-muted-foreground mr-2">{String.fromCharCode(65 + i)}</span>
                         {option}
-                        {answered && isCorrect && <CheckCircle2 className="w-3 h-3 inline ml-1" />}
+                        {isCorrect && <CheckCircle2 className="w-3 h-3 inline ml-1" />}
                         {answered && isSelected && !isCorrect && <XCircle className="w-3 h-3 inline ml-1" />}
                       </motion.button>
                     );
                   })}
                 </div>
 
-                {verifying && (
+                {gameState === "submitting" && (
                   <div className="mt-3 bg-primary/5 rounded p-2 flex items-center gap-2">
                     <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                    <span className="text-xs text-primary font-mono">AI verifying answer from trusted sources...</span>
+                    <span className="text-xs text-primary font-mono">Submitting answer on-chain...</span>
                   </div>
                 )}
 
-                {answered && !verifying && (
+                {answered && gameState === "playing" && (
                   <div className="mt-3 space-y-2">
-                    {aiExplanation && (
+                    {currentQuestion.explanation && (
                       <div className="bg-secondary/40 rounded p-2 text-xs text-foreground">
-                        <span className="font-semibold text-primary">AI Explanation: </span>{aiExplanation}
+                        <span className="font-semibold text-primary">AI Explanation: </span>{currentQuestion.explanation}
                       </div>
+                    )}
+                    {currentQuestion.correct && currentQuestion.reward_paid && BigInt(currentQuestion.reward_paid) > 0n && (
+                      <p className="text-xs text-primary font-mono flex items-center gap-1"><Sparkles className="w-3 h-3" /> +{formatEther(BigInt(currentQuestion.reward_paid))} GEN paid on-chain</p>
                     )}
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-muted-foreground font-mono">
-                        Source: <span className="text-primary">{aiSource || currentQ.source}</span>
+                        Source: <span className="text-primary">{currentQuestion.source}</span>
                       </p>
                       <Button size="sm" onClick={nextQuestion} className="bg-primary text-primary-foreground">
-                        {currentIndex + 1 >= questions.length ? "View Results" : "Next →"}
+                        {questionsAnswered + 1 >= questionCount ? "View Results" : "Next →"}
                       </Button>
                     </div>
                   </div>
@@ -312,9 +322,9 @@ const TriviaGame = () => {
               <p className="text-muted-foreground text-sm mt-1">
                 {answers.filter((a) => a.correct).length}/{answers.length} correct · Best Streak: {bestStreak}
               </p>
-              {answers.filter((a) => a.correct).length > 0 && (
+              {totalRewardEarned > 0n && (
                 <p className="text-primary text-sm mt-1 font-mono">
-                  +{(answers.filter((a) => a.correct).length * 0.01).toFixed(2)} GEN earned
+                  +{formatEther(totalRewardEarned)} GEN earned on-chain
                 </p>
               )}
               <div className="flex gap-2 justify-center mt-4">
@@ -330,7 +340,9 @@ const TriviaGame = () => {
                     {a.correct ? <CheckCircle2 className="w-3 h-3 text-primary shrink-0" /> : <XCircle className="w-3 h-3 text-destructive shrink-0" />}
                     <span className="text-foreground text-xs truncate">{a.question.question}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono ml-2 shrink-0">{a.question.options[a.question.correctIndex]}</span>
+                  <span className="text-xs text-muted-foreground font-mono ml-2 shrink-0">
+                    {a.question.correct_index !== undefined ? a.question.options[a.question.correct_index] : "—"}
+                  </span>
                 </div>
               ))}
             </div>
@@ -338,7 +350,6 @@ const TriviaGame = () => {
         )}
       </div>
 
-      <WalletModal open={walletModalOpen} onOpenChange={setWalletModalOpen} />
     </AppLayout>
   );
 };

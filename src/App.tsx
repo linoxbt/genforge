@@ -1,8 +1,8 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AppKitProvider } from "@/lib/appkit";
 import { WalletProvider } from "@/contexts/WalletContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -14,10 +14,8 @@ import ContractDeploy from "./pages/ContractDeploy";
 import Settings from "./pages/Settings";
 import Docs from "./pages/Docs";
 
-const queryClient = new QueryClient();
-
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <AppKitProvider>
     <TooltipProvider>
       <WalletProvider>
         <Toaster />
@@ -37,7 +35,7 @@ const App = () => (
         </BrowserRouter>
       </WalletProvider>
     </TooltipProvider>
-  </QueryClientProvider>
+  </AppKitProvider>
 );
 
 export default App;
