@@ -39,12 +39,23 @@ Each contract calls its LLM through `gl.nondet.exec_prompt`, and every non-deter
 
 | Contract | Address |
 |---|---|
-| `BountyBoard` | [`0x7eF217F1A3a05D9f93cA64DDDB0d2B3B3c661249`](https://explorer-asimov.genlayer.com/address/0x7eF217F1A3a05D9f93cA64DDDB0d2B3B3c661249) |
-| `PredictionMarket` | [`0xE1acC4AD01609E77235c0D61854589905444A713`](https://explorer-asimov.genlayer.com/address/0xE1acC4AD01609E77235c0D61854589905444A713) |
-| `TriviaRewards` | [`0x28dA35D4Dc3388805dB23bCDc469707360650acE`](https://explorer-asimov.genlayer.com/address/0x28dA35D4Dc3388805dB23bCDc469707360650acE) |
-| `DungeonMaster` | [`0x7ba49B8a80B10EDc84ff6AB04E04B8ffbC92B7Da`](https://explorer-asimov.genlayer.com/address/0x7ba49B8a80B10EDc84ff6AB04E04B8ffbC92B7Da) |
+| `BountyBoard` | [`0x206337af5D7dCD295D0D94D96A2c49a6ecF4b5F1`](https://explorer-asimov.genlayer.com/address/0x206337af5D7dCD295D0D94D96A2c49a6ecF4b5F1) |
+| `PredictionMarket` | [`0xa22450cdd7944B22CA0DA770b516a086CC009ecC`](https://explorer-asimov.genlayer.com/address/0xa22450cdd7944B22CA0DA770b516a086CC009ecC) |
+| `TriviaRewards` | [`0x2C176f4E2f578084fAE5337FBa3ab5905FdA6A30`](https://explorer-asimov.genlayer.com/address/0x2C176f4E2f578084fAE5337FBa3ab5905FdA6A30) |
+| `DungeonMaster` | [`0x958808F92fFD96E1B41935B30e60505538210991`](https://explorer-asimov.genlayer.com/address/0x958808F92fFD96E1B41935B30e60505538210991) |
 
 `trivia_rewards` and `dungeon_master` pay small GEN rewards from their own contract balance; each exposes a `fund_rewards()` payable method to top up the pool; if it's empty, correct answers and level-ups are still recorded, just without a payout.
+
+### How each resolution is grounded
+
+Every AI decision that triggers a payout is grounded in a fetched, independently-verifiable source rather than unaided LLM recall, and every validator that gates a payout compares the actual consequential value (not just structural shape):
+
+| Contract | Grounding | Validator check |
+|---|---|---|
+| `TriviaRewards` | Question and answer are generated from a deterministically-selected Wikipedia page summary (`gl.nondet.web.request`) — leader and validator always fetch the identical source, so an independent answer comparison is meaningful. | Leader and validator's `correct_answer_text` must match; the LLM's own `correctIndex`/`correctAnswerText` are also cross-checked for self-consistency. |
+| `BountyBoard` | Best-effort fetch of the submission's link content as scoring evidence; degrades gracefully to description-only scoring if the link can't be fetched (private repo, 404, non-HTTP). | Leader/validator accept-reject decision must match, and scores must be within `SCORE_TOLERANCE`. |
+| `PredictionMarket` | Optional `source_url` on event creation; when set, leader and validator both fetch it and must ground the outcome in that content. Without one, resolution falls back to reasoning-only (flagged as the weaker case). A settlement-timing gate blocks `resolve_event` until the event's `end_date` has passed. | Leader/validator `result` (for/against) must match exactly. |
+| `DungeonMaster` | Turn narration is LLM-generated per action; not source-grounded (there's no external fact to fetch for "what happens when you attack the goblin"). | Leader/validator must agree on `hp_change`/`gold_change` category (damage/heal/gain/loss) and land within `XP_TOLERANCE_RATIO` on `xp_gain`, since `xp_gain` drives level-up payouts. |
 
 ## Tech stack
 
@@ -101,6 +112,15 @@ genlayer deploy --contract contracts/bounty_board.py
 ```
 
 Every contract pins a concrete GenVM runner version in its `# { "Depends": ... }` header; unpinned or `:latest`/`:test` runner aliases are rejected by the network.
+
+### Tests
+
+```sh
+pip install genlayer-test
+pytest tests/direct/ -v
+```
+
+`tests/direct/` uses [`genlayer-test`](https://github.com/genlayerlabs/genlayer-test)'s direct-mode harness: contracts run in-process (no server, ~1ms/test) with `mock_llm()`/`mock_web()` stubbing `gl.nondet.exec_prompt`/`gl.nondet.web.request`. Beyond state transitions and guards, it uses the harness's `direct_vm.run_validator()` cheat code to exercise each contract's `validator_fn` directly — including scenarios where the validator's independent leader-function call lands on a different XP/gold delta (`dungeon_master`) or a different fact/answer (`trivia_rewards`), proving the fixed validators correctly reject a mismatched consequential value instead of just checking structural shape.
 
 ## Deployment
 

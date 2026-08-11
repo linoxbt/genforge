@@ -1,5 +1,6 @@
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 
+import json
 from dataclasses import dataclass
 
 from genlayer import *
@@ -9,6 +10,22 @@ ERROR_LLM = "[LLM_ERROR]"
 
 # 0.01 GEN per correct answer, paid from the contract's own balance (see fund_rewards).
 REWARD_PER_CORRECT = u256(10_000_000_000_000_000)
+
+# Curated Wikipedia page titles per category (matches the categories offered in
+# TriviaGame.tsx, lowercased). "genlayer" has no dedicated Wikipedia article, so it
+# maps to closely-related consensus/smart-contract topics instead.
+TOPICS: dict[str, list[str]] = {
+    "genlayer": ["Smart contract", "Blockchain", "Consensus (computer science)", "Byzantine fault", "Ethereum"],
+    "blockchain": ["Blockchain", "Smart contract", "Bitcoin", "Ethereum", "Consensus (computer science)"],
+    "crypto": ["Bitcoin", "Ethereum", "Cryptocurrency", "Blockchain", "Non-fungible token"],
+    "science": ["Photosynthesis", "Quantum mechanics", "DNA", "Periodic table", "Theory of relativity"],
+    "history": ["World War II", "Ancient Egypt", "French Revolution", "Roman Empire", "Cold War"],
+    "geography": ["Mount Everest", "Amazon rainforest", "Sahara", "Nile", "Pacific Ocean"],
+    "technology": ["Internet", "Artificial intelligence", "Smartphone", "Semiconductor", "Internet of things"],
+    "sports": ["FIFA World Cup", "Olympic Games", "Basketball", "Tennis", "Cricket"],
+    "music": ["Ludwig van Beethoven", "The Beatles", "Jazz", "Hip hop music", "Opera"],
+}
+ALL_TOPICS: list[str] = sorted({title for titles in TOPICS.values() for title in titles})
 
 
 @allow_storage
@@ -46,6 +63,17 @@ def _handle_leader_error(leaders_res, leader_fn) -> bool:
         return False
 
 
+def _answers_match(a: str, b: str) -> bool:
+    """Case-insensitive equivalence check with light tolerance for wording, used both
+    to self-validate an LLM's own correctIndex/correctAnswerText pair and to compare
+    leader vs validator answers grounded in the same source."""
+    a, b = a.strip().lower(), b.strip().lower()
+    if a == b:
+        return True
+    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+    return len(shorter) >= 4 and shorter in longer
+
+
 def _parse_question(analysis) -> dict:
     if not isinstance(analysis, dict):
         raise gl.vm.UserError(f"{ERROR_LLM} Non-dict LLM response: {type(analysis)}")
@@ -53,56 +81,77 @@ def _parse_question(analysis) -> dict:
     question = analysis.get("question")
     options = analysis.get("options")
     correct_index = analysis.get("correctIndex", analysis.get("correct_index"))
-    source = analysis.get("source", "")
+    correct_answer_text = analysis.get("correctAnswerText", analysis.get("correct_answer_text", ""))
     explanation = analysis.get("explanation", "")
 
     if not isinstance(question, str) or not question.strip():
         raise gl.vm.UserError(f"{ERROR_LLM} Missing/invalid 'question'")
     if not isinstance(options, list) or len(options) != 4:
         raise gl.vm.UserError(f"{ERROR_LLM} 'options' must be a list of exactly 4 items")
+    options = [str(o) for o in options]
     try:
         correct_index = int(correct_index)
     except (TypeError, ValueError):
         raise gl.vm.UserError(f"{ERROR_LLM} Non-numeric 'correctIndex': {correct_index!r}")
     if correct_index < 0 or correct_index > 3:
         raise gl.vm.UserError(f"{ERROR_LLM} 'correctIndex' out of range: {correct_index}")
+    if not isinstance(correct_answer_text, str) or not correct_answer_text.strip():
+        raise gl.vm.UserError(f"{ERROR_LLM} Missing/invalid 'correctAnswerText'")
+    correct_answer_text = correct_answer_text.strip()
+
+    # Self-consistency guard: the option the LLM points at with correctIndex must
+    # actually be (approximately) the correctAnswerText it separately claimed.
+    if not _answers_match(options[correct_index], correct_answer_text):
+        raise gl.vm.UserError(f"{ERROR_LLM} 'correctAnswerText' does not match options[correctIndex]")
 
     return {
         "question": question.strip(),
-        "options": [str(o) for o in options],
+        "options": options,
         "correct_index": correct_index,
-        "source": str(source),
+        "correct_answer_text": correct_answer_text,
         "explanation": str(explanation),
     }
 
 
-def _generate(category: str) -> dict:
-    category_hint = (
-        f'Generate the question about the "{category}" category.'
-        if category and category != "all"
-        else "Generate a question from a diverse category (Science, History, Geography, Technology, Blockchain, Crypto, GenLayer, Sports, Literature, Music, Movies)."
-    )
+def _fetch_topic_extract(title: str) -> str:
+    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{title.replace(' ', '_')}"
+    response = gl.nondet.web.request(url, method="GET")
+    if response.status != 200:
+        raise gl.vm.UserError(f"{ERROR_LLM} Failed to fetch source (status {response.status}): {title}")
+    if response.body is None:
+        raise gl.vm.UserError(f"{ERROR_LLM} Empty response body for: {title}")
+    try:
+        data = json.loads(response.body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise gl.vm.UserError(f"{ERROR_LLM} Non-JSON source response for: {title}")
+    extract = data.get("extract", "")
+    if not isinstance(extract, str) or not extract.strip():
+        raise gl.vm.UserError(f"{ERROR_LLM} Empty source extract for: {title}")
+    return extract.strip()
 
-    prompt = f"""You are a trivia question generator. Generate one unique, interesting, and factually verifiable trivia question.
 
-{category_hint}
+def _generate(title: str) -> dict:
+    # Only plain str args here — storage-backed (@allow_storage) objects can't be
+    # read inside a nondet block (leader/validator run in a sandboxed context that
+    # can't pickle storage-class instances).
+    extract = _fetch_topic_extract(title)
+
+    prompt = f"""You are a trivia question generator. Generate one unique, interesting trivia question using ONLY the facts in the source text below. Do not use outside knowledge or facts not present in the source.
+
+Source ("{title}"): {extract}
 
 Requirements:
 - Exactly 4 answer options with only ONE correct answer.
-- The correct answer must be factually accurate and verifiable.
-- Include an authoritative source and a short explanation.
-
-For GenLayer/Blockchain questions, use these verified facts:
-- GenLayer uses "Optimistic Democracy" consensus.
-- Intelligent Contracts are written in Python.
-- The current testnet is called "Asimov".
-- GenLayer is an AI-powered Layer 1 blockchain.
+- The correct answer must be explicitly supported by the source text above.
+- "correctAnswerText" must be the exact text of the correct option (must equal options[correctIndex]).
 
 Return ONLY a JSON object with this exact shape:
-{{"question": "<text>", "options": ["<a>", "<b>", "<c>", "<d>"], "correctIndex": <0-3>, "source": "<authoritative source>", "explanation": "<1-2 sentence explanation>"}}"""
+{{"question": "<text>", "options": ["<a>", "<b>", "<c>", "<d>"], "correctIndex": <0-3>, "correctAnswerText": "<exact text of the correct option>", "explanation": "<1-2 sentence explanation grounded in the source>"}}"""
 
     analysis = gl.nondet.exec_prompt(prompt, response_format="json")
-    return _parse_question(analysis)
+    parsed = _parse_question(analysis)
+    parsed["source"] = f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}"
+    return parsed
 
 
 class TriviaRewards(gl.Contract):
@@ -121,8 +170,16 @@ class TriviaRewards(gl.Contract):
 
     @gl.public.write
     def generate_question(self, category: str) -> u256:
+        normalized_category = (category or "all").strip().lower()
+        candidates = TOPICS.get(normalized_category, ALL_TOPICS)
+        # Deterministic topic selection is the actual fix here: picking a *specific*
+        # Wikipedia page from storage (a plain read, fine outside nondet) before the
+        # nondet block runs guarantees leader and validator independently fetch the
+        # exact same source, instead of each free-recalling from unaided LLM "knowledge".
+        title = candidates[int(self.next_question_id) % len(candidates)]
+
         def leader_fn():
-            return _generate(category)
+            return _generate(title)
 
         def validator_fn(leaders_res: gl.vm.Result) -> bool:
             if not isinstance(leaders_res, gl.vm.Return):
@@ -131,7 +188,13 @@ class TriviaRewards(gl.Contract):
             validator_result = leader_fn()
             leader_ok = len(leaders_res.calldata["options"]) == 4 and 0 <= leaders_res.calldata["correct_index"] <= 3
             validator_ok = len(validator_result["options"]) == 4 and 0 <= validator_result["correct_index"] <= 3
-            return leader_ok and validator_ok
+            if not (leader_ok and validator_ok):
+                return False
+
+            # Both sides fetched the identical source page, so independent agreement on
+            # the underlying fact is now meaningfully checkable (this is the literal
+            # "trivia-answer correctness" the steward flagged as unchecked before).
+            return _answers_match(leaders_res.calldata["correct_answer_text"], validator_result["correct_answer_text"])
 
         result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 
@@ -140,7 +203,7 @@ class TriviaRewards(gl.Contract):
 
         self.questions[question_id] = Question(
             question_id=question_id,
-            category=category or "all",
+            category=normalized_category,
             question=result["question"],
             option_0=result["options"][0],
             option_1=result["options"][1],

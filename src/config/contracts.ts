@@ -6,8 +6,8 @@ import type { Address } from "viem";
  * Redeploying a contract (contracts/*.py) requires updating its address here.
  */
 export const CONTRACTS = {
-  bountyBoard: "0x7eF217F1A3a05D9f93cA64DDDB0d2B3B3c661249" as Address,
-  predictionMarket: "0xE1acC4AD01609E77235c0D61854589905444A713" as Address,
-  triviaRewards: "0x28dA35D4Dc3388805dB23bCDc469707360650acE" as Address,
-  dungeonMaster: "0x7ba49B8a80B10EDc84ff6AB04E04B8ffbC92B7Da" as Address,
+  bountyBoard: "0x206337af5D7dCD295D0D94D96A2c49a6ecF4b5F1" as Address,
+  predictionMarket: "0xa22450cdd7944B22CA0DA770b516a086CC009ecC" as Address,
+  triviaRewards: "0x2C176f4E2f578084fAE5337FBa3ab5905FdA6A30" as Address,
+  dungeonMaster: "0x958808F92fFD96E1B41935B30e60505538210991" as Address,
 } as const;

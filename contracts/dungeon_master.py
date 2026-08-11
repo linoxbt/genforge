@@ -13,6 +13,10 @@ LEVEL_UP_REWARD = u256(5_000_000_000_000_000)  # 0.005 GEN
 
 MAX_CONTEXT_TURNS = 6
 
+# xp_gain directly drives level-ups (a real GEN payout via LEVEL_UP_REWARD), so leader
+# and validator must land within this ratio of each other, not just agree on sign.
+XP_TOLERANCE_RATIO = 2.0
+
 
 @allow_storage
 @dataclass
@@ -182,6 +186,10 @@ class DungeonMaster(gl.Contract):
             return (
                 leaders_res.calldata["hp_change"] == 0
                 and validator_result["hp_change"] == 0
+                and leaders_res.calldata["gold_change"] == 0
+                and validator_result["gold_change"] == 0
+                and leaders_res.calldata["xp_gain"] == 0
+                and validator_result["xp_gain"] == 0
                 and len(leaders_res.calldata["choices"]) > 0
                 and len(validator_result["choices"]) > 0
             )
@@ -232,13 +240,27 @@ class DungeonMaster(gl.Contract):
                 return _handle_leader_error(leaders_res, leader_fn)
 
             validator_result = leader_fn()
-            leader_dmg = leaders_res.calldata["hp_change"] < 0
-            validator_dmg = validator_result["hp_change"] < 0
-            leader_heal = leaders_res.calldata["hp_change"] > 0
-            validator_heal = validator_result["hp_change"] > 0
-            # Validators must agree on the *category* of outcome (damage / heal / neutral),
-            # not the exact narrative text or precise numbers.
-            return leader_dmg == validator_dmg and leader_heal == validator_heal
+            leader_hp, validator_hp = leaders_res.calldata["hp_change"], validator_result["hp_change"]
+            leader_gold, validator_gold = leaders_res.calldata["gold_change"], validator_result["gold_change"]
+            leader_xp, validator_xp = leaders_res.calldata["xp_gain"], validator_result["xp_gain"]
+
+            def _sign(n: int) -> int:
+                return (n > 0) - (n < 0)
+
+            # Validators must agree on the *category* of hp/gold outcome (damage / heal /
+            # neutral, gain / loss / none), not the exact narrative text or precise numbers.
+            if _sign(leader_hp) != _sign(validator_hp):
+                return False
+            if _sign(leader_gold) != _sign(validator_gold):
+                return False
+
+            # xp_gain drives level-ups, which trigger a real GEN payout (LEVEL_UP_REWARD),
+            # so it gets a tighter check than sign-only: both zero, or both positive and
+            # within XP_TOLERANCE_RATIO of each other, so a leader can't unilaterally
+            # inflate the payout-triggering value and still pass validation.
+            if leader_xp == 0 or validator_xp == 0:
+                return leader_xp == validator_xp
+            return max(leader_xp, validator_xp) / min(leader_xp, validator_xp) <= XP_TOLERANCE_RATIO
 
         turn = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 

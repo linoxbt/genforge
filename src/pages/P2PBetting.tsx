@@ -20,6 +20,7 @@ const categories = ["Sports", "Politics", "Crypto", "Weather", "Entertainment", 
 interface Bet { id: string; user_address: string; side: string; amount: string; }
 interface BettingEvent {
   id: string; title: string; description: string; category: string; end_date: string;
+  source_url: string | null;
   status: string; result: string | null; resolution: string | null;
   total_for: string; total_against: string;
   creator_address: string;
@@ -33,6 +34,7 @@ const P2PBetting = () => {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [betAmount, setBetAmount] = useState<Record<string, string>>({});
   const [placingBet, setPlacingBet] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -71,7 +73,7 @@ const P2PBetting = () => {
       const txHash = await client.writeContract({
         address: CONTRACTS.predictionMarket,
         functionName: "create_event",
-        args: [title, description, category, endDate],
+        args: [title, description, category, endDate, sourceUrl],
         value: 0n,
       });
       const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: WAIT_STATUS, retries: 90, interval: 5000 });
@@ -79,7 +81,7 @@ const P2PBetting = () => {
 
       toast({ title: "Betting event created on-chain!", description: `tx: ${String(txHash).slice(0, 14)}...` });
       setShowCreate(false);
-      setTitle(""); setDescription(""); setCategory(""); setEndDate("");
+      setTitle(""); setDescription(""); setCategory(""); setEndDate(""); setSourceUrl("");
       fetchEvents();
     } catch (e: any) {
       toast({ title: "Failed to create event", description: e.message, variant: "destructive" });
@@ -204,6 +206,14 @@ const P2PBetting = () => {
                     </Select>
                     <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                   </div>
+                  <Input
+                    placeholder="Source URL for resolution (optional, e.g. official results page)"
+                    value={sourceUrl}
+                    onChange={(e) => setSourceUrl(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    If provided, the AI resolver fetches and grounds its decision in this source instead of relying on unaided recall.
+                  </p>
                   <div className="flex gap-2">
                     <Button onClick={createEvent} className="bg-primary text-primary-foreground" disabled={confirming}>
                       {confirming ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Confirming...</> : "Confirm & Deploy"}
@@ -366,6 +376,20 @@ const P2PBetting = () => {
                       <p className="text-foreground font-mono">{(forAmt + againstAmt).toFixed(4)} GEN</p>
                     </div>
                   </div>
+
+                  {selectedEvent.source_url && (
+                    <div className="bg-secondary/30 rounded p-2">
+                      <p className="text-xs text-muted-foreground font-mono uppercase mb-1">Resolution Source</p>
+                      <a
+                        href={selectedEvent.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline break-all"
+                      >
+                        {selectedEvent.source_url}
+                      </a>
+                    </div>
+                  )}
 
                   <div className="bg-secondary/30 rounded p-2">
                     <p className="text-xs text-muted-foreground font-mono uppercase mb-1">Created By</p>

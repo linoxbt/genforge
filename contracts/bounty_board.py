@@ -97,6 +97,25 @@ def _parse_review(analysis) -> dict:
     }
 
 
+def _fetch_link_evidence(link: str) -> str:
+    """Best-effort fetch of the submission link's content as grounding evidence.
+    Never raises — an unfetchable link (private repo, non-HTTP, 4xx/5xx, timeout)
+    degrades to description-only scoring rather than hard-failing the whole review."""
+    if not link or not (link.startswith("http://") or link.startswith("https://")):
+        return ""
+    try:
+        response = gl.nondet.web.request(link, method="GET")
+    except Exception:
+        return ""
+    if response.status >= 400 or response.body is None:
+        return ""
+    try:
+        text = response.body.decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+    return text[:4000].strip()
+
+
 def _score_submission(
     bounty_title: str,
     bounty_description: str,
@@ -107,6 +126,13 @@ def _score_submission(
     # NOTE: only plain str/int args here — storage-backed (@allow_storage) objects
     # cannot be read inside a nondet block (leader/validator run in a separate
     # sandboxed context that can't pickle storage-class instances).
+    link_evidence = _fetch_link_evidence(submission_link)
+    evidence_block = (
+        f"Fetched content from the submission link (evidence, may be partial):\n{link_evidence}"
+        if link_evidence
+        else "(Submission link content could not be fetched — score from the description alone and note this in feedback.)"
+    )
+
     prompt = f"""You are an impartial bounty reviewer. Evaluate this submission against the bounty's acceptance criteria and be fair but rigorous.
 
 Bounty title: {bounty_title}
@@ -116,7 +142,9 @@ Acceptance criteria: {bounty_criteria}
 Submission description: {submission_description}
 Submission link: {submission_link}
 
-Score the submission from 0 to 100 based on how well it satisfies the acceptance criteria.
+{evidence_block}
+
+Score the submission from 0 to 100 based on how well it satisfies the acceptance criteria. Prioritize the fetched evidence above over the submitter's self-description when they conflict.
 
 Return ONLY a JSON object with this exact shape:
 {{"score": <integer 0-100>, "feedback": "<2-3 sentence explanation>", "strengths": ["..."], "weaknesses": ["..."]}}"""
